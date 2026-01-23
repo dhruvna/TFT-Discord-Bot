@@ -1,0 +1,26 @@
+{
+  "name": "tft-discord-bot",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "register": "node src/register-commands.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dhruvna/TFT-Discord-Bot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dhruvna/TFT-Discord-Bot/issues"
+  },
+  "homepage": "https://github.com/dhruvna/TFT-Discord-Bot#readme",
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3"
+  }
+}
