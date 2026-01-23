@@ -4,6 +4,7 @@ import {
     normalizePlatform, 
     platformToRegional,
     getTFTRankByPuuid,
+    getTftRegaliaThumbnailUrl,
  } from '../riot.js';
 
 /* Convert's rank entry to a formatted one line string.
@@ -42,8 +43,22 @@ function addQueueSection(fields, label, entry) {
     );
 }
 
-function addSpacer(fields) {
-  fields.push({ name: "\u200B", value: "\u200B", inline: false });
+async function buildQueueEmbed({account, label, entry}) {
+    const fields = [];
+    addQueueSection(fields, label, entry);
+
+    const embed = new EmbedBuilder()
+        .setTitle(`${account.gameName}#${account.tagLine} — ${label}`)
+        .addFields(fields)
+
+    const thumbUrl = await getTftRegaliaThumbnailUrl({
+        queueType: entry.queueType,
+        tier: entry.tier,
+    });
+
+    embed.setThumbnail(thumbUrl || 'https://placehold.co/96x96/png?text=TFT');
+
+    return embed;
 }
 
 export default {
@@ -96,24 +111,29 @@ export default {
         const doubleUpEntry = tftEntries.find(e => e.queueType === 'RANKED_TFT_DOUBLE_UP');
 
         // 7. Build embed fields
-        const fields = [];
+        const embeds = [];
 
-        if (rankedEntry) addQueueSection(fields, 'Ranked', rankedEntry);
-
-        if (rankedEntry && doubleUpEntry) addSpacer(fields);
-
-        if (doubleUpEntry) addQueueSection(fields, 'Double Up', doubleUpEntry);
-
-        if (fields.length === 0) {
-            fields.push({ name: 'TFT', value: 'Unranked', inline: false });
+        if (rankedEntry) {
+            embeds.push(
+                await buildQueueEmbed({ account, label: 'Ranked', entry: rankedEntry })
+            );
+        }
+        
+        if (doubleUpEntry) {
+            embeds.push(
+                await buildQueueEmbed({ account, label: 'Double Up', entry: doubleUpEntry })
+            );
         }
 
-        const embed = new EmbedBuilder()
-            .setTitle(`${account.gameName}#${account.tagLine}'s TFT Rank:`)
-            .addFields(fields);
-        
-        embed.setThumbnail('https://placehold.co/96x96/png?text=TFT');
+        // 8. If no ranked entries, show unranked message
+        if (embeds.length === 0) {
+            const embed = new EmbedBuilder()
+                .setTitle(`${account.gameName}#${account.tagLine}'s TFT Rank:`)
+                .setDescription('Unranked')
+                .setThumbnail('https://placehold.co/96x96/png?text=TFT')
+            embeds.push(embed);
+        }
 
-        await interaction.editReply({ embeds: [embed] });
+        await interaction.editReply({ embeds });
     },
 };
