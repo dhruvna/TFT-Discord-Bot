@@ -7,3 +7,4 @@
 - Basic ping command created (/ping)
 - Can fetch TFT Ranked profile summary (/rank)
 - All commands need to be run manually, goal is to try automatic implementation soon
+![Day 1 Progress](images\Day1Progress.png)
