@@ -5,7 +5,6 @@ const defaultRegional = (process.env.DEFAULT_REGIONAL || 'americas').toLowerCase
 
 const PLATFORM_TO_REGIONAL = {
   na1: 'americas',
-  na2: 'americas',
   br1: 'americas',
   la1: 'americas',
   la2: 'americas',

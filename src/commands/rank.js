@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { 
     getAccountByRiotId, 
     normalizePlatform, 
@@ -6,11 +6,45 @@ import {
     getTFTRankByPuuid,
  } from '../riot.js';
 
-const TFT_QUEUE_LABELS = {
-  RANKED_TFT: 'Ranked',
-  RANKED_TFT_DOUBLE_UP: 'Double Up',
-};
+/* Convert's rank entry to a formatted one line string.
+   Example: Emerald II - 75 LP */
+function formatRankLine(entry) {
+    return `${entry.tier} ${entry.rank} - ${entry.leaguePoints} LP`;
+}
 
+/* Winrate isn't given by Riot, compute it here.
+   Return "-" if no games played yet. */
+function computeWinrate(wins, losses) {
+    const total = wins + losses;
+    if (total === 0) return "-";
+    return `${((wins / total) * 100).toFixed(1)}%`;
+}
+
+/* Add a section for a specific queue type to the fields array 
+   - A header field with the rank line
+   - 3 inline stat fields (Wins/Losses/Winrate) aligned as columns */
+function addQueueSection(fields, label, entry) {
+    const wins = entry.wins ?? 0;
+    const losses = entry.losses ?? 0;
+    const wr = computeWinrate(wins, losses);
+    // Header / rank line
+    fields.push({
+        name: label,
+        value: `**${formatRankLine(entry)}**`,
+        inline: false,
+    });
+
+    // Stat rows
+    fields.push(
+        { name: 'Wins', value: `${wins}`, inline: true},
+        { name: 'Losses', value: `${losses}`, inline: true },
+        { name: 'Winrate', value: `${wr}`, inline: true },
+    );
+}
+
+function addSpacer(fields) {
+  fields.push({ name: "\u200B", value: "\u200B", inline: false });
+}
 
 export default {
     data: new SlashCommandBuilder()
@@ -32,14 +66,14 @@ export default {
             opt
             .setName('platform')
             .setDescription('Platform routing like na1, euw1, kr ')
-            .setRequired(true)
+            .setRequired(false)
         ),
 
     async execute(interaction) {
         // 1. Pull user inputs from disc command
         const gameName = interaction.options.getString('gamename', true);
         const tagLine = interaction.options.getString('tagline', true);
-        const platformInput = interaction.options.getString('platform', true);
+        const platformInput = interaction.options.getString('platform', false);
         
         // 2. Normalize platform + get regional routing
         const platform = normalizePlatform(platformInput);
@@ -48,36 +82,38 @@ export default {
         // 3. Defer reply in case of Riot API delay
         await interaction.deferReply();
 
-        // 4. Call Riot API to get account by Riot ID
+        // 4. Riot ID -> Account PUUID
         const account = await getAccountByRiotId({ regional, gameName, tagLine });
         
+        // 5. PUUID -> TFT Entries (Ranked/Double Up/etc)
         const tftEntries = await getTFTRankByPuuid({
             platform, 
             puuid: account.puuid 
         });
 
-        let rankLines = [];
+        // 6. Pull out queues we care about
+        const rankedEntry = tftEntries.find(e => e.queueType === 'RANKED_TFT');
+        const doubleUpEntry = tftEntries.find(e => e.queueType === 'RANKED_TFT_DOUBLE_UP');
 
-        // 5. Reply with basic account info + TFT rank if available
-        if (Array.isArray(tftEntries) && tftEntries.length > 0) {
-            for (const entry of tftEntries) {
-                const label = TFT_QUEUE_LABELS[entry.queueType];
-                if (!label) continue;
+        // 7. Build embed fields
+        const fields = [];
 
-                const line = 
-                    `${label}: ` +
-                    `${entry.tier} ${entry.rank} — ${entry.leaguePoints} LP ` +
-                    `(W ${entry.wins} / L ${entry.losses})`;
-                
-                    rankLines.push(line);
-            }
-        } else {
-            rankLines.push('Unranked in TFT');
+        if (rankedEntry) addQueueSection(fields, 'Ranked', rankedEntry);
+
+        if (rankedEntry && doubleUpEntry) addSpacer(fields);
+
+        if (doubleUpEntry) addQueueSection(fields, 'Double Up', doubleUpEntry);
+
+        if (fields.length === 0) {
+            fields.push({ name: 'TFT', value: 'Unranked', inline: false });
         }
+
+        const embed = new EmbedBuilder()
+            .setTitle(`${account.gameName}#${account.tagLine}'s TFT Rank:`)
+            .addFields(fields);
         
-        await interaction.editReply(
-            `**${account.gameName}#${account.tagLine}**\n` +
-            `TFT Rank: \n${rankLines.join('\n')}\n`
-        )        
+        embed.setThumbnail('https://placehold.co/96x96/png?text=TFT');
+
+        await interaction.editReply({ embeds: [embed] });
     },
 };
