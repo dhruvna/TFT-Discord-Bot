@@ -48,7 +48,7 @@ A Discord bot built with **Node.js**, **discord.js**, and the **Riot Games API**
 - Can fetch TFT Ranked profile summary (/rank)
 - All commands need to be run manually, goal is to try automatic implementation soon
 
-![Day 1 Progress](images\Rank_Day1_Progress.png)
+![Day 1 Progress](images/Rank_Day1_Progress.png)
 
 **Day 2: 1/23/2026**
 - Deciding on format of Discord embeds
@@ -62,9 +62,9 @@ Live Match Tracking
 - Use league of graphs to embed the link for the match after it is finished
 - Data dragon can embed some image, maybe their little legend?
 
-![Day 2 Progress](images\Rank_Day2_Progress.png)
+![Day 2 Progress](images/Rank_Day2_Progress.png)
 
-![Day 2 List Progress](images\List_Day2_Progress.png)
+![Day 2 List Progress](images/List_Day2_Progress.png)
 # Project Structure
 
 ```text
