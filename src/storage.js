@@ -29,9 +29,9 @@ export function makeAccountKey({ gameName, tagLine, platform }) {
 }
 
 export async function listGuildAccounts(guildId) {
-    const db = await loadDb();
-    const guild = db[guildId];
-    return guild?.accounts ?? [];
+  const db = await loadDb();
+  const guild = db[guildId];
+  return guild?.accounts ?? [];
 }
 
 export async function upsertGuildAccount(guildId, account) {
@@ -39,12 +39,21 @@ export async function upsertGuildAccount(guildId, account) {
     const guild = ensureGuild(db, guildId);
 
     const idx = guild.accounts.findIndex((a) => a.key === account.key);
+
+    let existed = false;
+
     if (idx >= 0) {
-        guild.accounts[idx] = { ...guild.accounts[idx], ...account };
+        existed = true;
+        guild.accounts[idx] = {
+            ...guild.accounts[idx], 
+            ...account,
+            addedBy: guild.accounts[idx].addedBy,
+            addedAt: guild.accounts[idx].addedAt,
+        };
     } else {
         guild.accounts.push(account);
     }
 
     await saveDb(db);
-    return account;
+    return { account, existed };
 }

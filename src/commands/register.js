@@ -86,11 +86,19 @@ export default {
         };
 
         // 7. Upsert into storage
-        await upsertGuildAccount(guildId, stored);
+        const { existed } = await upsertGuildAccount(guildId, stored);
 
         // Confirm to user
-        await interaction.editReply(
-            `Successfully registered Riot ID **${stored.gameName}#${stored.tagLine}** for this server.`,
-        );
+        if ( existed ) {
+            await interaction.editReply(
+                `**${stored.gameName}#${stored.tagLine}** is already registered in this server.`,
+            );
+            return;
+        } else {
+            await interaction.editReply(
+                `Successfully registered Riot ID **${stored.gameName}#${stored.tagLine}** for this server.`,
+            );
+        }
+        
     },
 };
