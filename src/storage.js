@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';  
 
-const DATA_PATH = path.join(process.cwd(), 'data', 'registrations.json');
+const DATA_PATH = path.join(process.cwd(), 'user_data', 'registrations.json');
 
 async function ensureDataFile() {
   const dir = path.dirname(DATA_PATH);
@@ -29,7 +29,7 @@ export async function loadDb() {
 
 export async function saveDb(db) {
     await ensureDataFile();
-    
+
     const tmp = `${DATA_PATH}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(db, null, 2), 'utf-8');
     await fs.rename(tmp, DATA_PATH);
