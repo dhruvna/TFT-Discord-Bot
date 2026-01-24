@@ -3,7 +3,22 @@ import path from 'node:path';
 
 const DATA_PATH = path.join(process.cwd(), 'data', 'registrations.json');
 
+async function ensureDataFile() {
+  const dir = path.dirname(DATA_PATH);
+
+  // Ensure ./data directory exists
+  await fs.mkdir(dir, { recursive: true });
+
+  // Ensure registrations.json exists
+  try {
+    await fs.access(DATA_PATH);
+  } catch {
+    await fs.writeFile(DATA_PATH, "{}", "utf8");
+  }
+}
+
 export async function loadDb() {
+    await ensureDataFile();
     try {
         const raw = await fs.readFile(DATA_PATH, 'utf-8');
         return JSON.parse(raw);
