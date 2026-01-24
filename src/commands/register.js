@@ -2,8 +2,8 @@ import { SlashCommandBuilder } from "discord.js";
 
 import {
     getAccountByRiotId,
-    normalizePlatform,
-    platformToRegional,
+    REGION_CHOICES,
+    resolveRegion,
 } from '../riot.js';
 
 import {
@@ -30,9 +30,10 @@ export default {
         )
         .addStringOption((opt) =>
             opt
-            .setName('platform')
-            .setDescription('Platform routing like na1, euw1, kr ')
-            .setRequired(false)
+            .setName('region')
+            .setDescription('Region like NA, EUW, KR')
+            .setRequired(true)
+            .addChoices(...REGION_CHOICES)
         ),
 
     async execute(interaction) {
@@ -49,11 +50,10 @@ export default {
         // 2. Pull user inputs from disc command
         const gameName = interaction.options.getString("gamename", true);
         const tagLine = interaction.options.getString("tagline", true);
-        const platformInput = interaction.options.getString("platform", false);
-        
-        // 3. Normalize platform + get regional routing
-        const platform = normalizePlatform(platformInput);
-        const regional = platformToRegional(platform);
+        const regionInput = interaction.options.getString("region", true);
+
+        // 3. Normalize platform + get regional routing 
+        const { platform, regional, region } = resolveRegion(regionInput);
         
         // 4. Defer reply in case of Riot API delay
         await interaction.deferReply({ ephemeral: true });
@@ -78,6 +78,7 @@ export default {
             }),
             gameName: account.gameName,
             tagLine: account.tagLine,
+            region,
             platform,
             puuid: account.puuid,
             addedBy: interaction.user.id,

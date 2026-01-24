@@ -1,7 +1,94 @@
 import 'dotenv/config';
 
-const defaultPlatform = (process.env.DEFAULT_PLATFORM || 'na1').toLowerCase();
-const defaultRegional = (process.env.DEFAULT_REGIONAL || 'americas').toLowerCase();
+// Discord dropdown choices for region selection
+export const REGION_CHOICES = [
+  { name: 'NA', value: 'NA' },
+  { name: 'EUW', value: 'EUW' },
+  { name: 'EUNE', value: 'EUNE' },
+  { name: 'KR', value: 'KR' },
+  { name: 'BR', value: 'BR' },
+  { name: 'LAN', value: 'LAN' },
+  { name: 'LAS', value: 'LAS' },
+  { name: 'OCE', value: 'OCE' },
+  { name: 'JP', value: 'JP' },
+  { name: 'RU', value: 'RU' },
+  { name: 'TR', value: 'TR' },
+  { name: 'VN', value: 'VN' },
+  { name: 'SG', value: 'SG' },
+  { name: 'PH', value: 'PH' },
+  { name: 'TH', value: 'TH' },
+  { name: 'TW', value: 'TW' },
+];
+
+// Maps user-facing region -> Riot routing values
+const REGION_TO_ROUTES = {
+  NA:  { platform: 'na1', regional: 'americas' },
+  BR:  { platform: 'br1', regional: 'americas' },
+  LAN: { platform: 'la1', regional: 'americas' },
+  LAS: { platform: 'la2', regional: 'americas' },
+
+  EUW: { platform: 'euw1', regional: 'europe' },
+  EUNE:{ platform: 'eun1', regional: 'europe' },
+  TR:  { platform: 'tr1', regional: 'europe' },
+  RU:  { platform: 'ru', regional: 'europe' },
+
+  KR:  { platform: 'kr', regional: 'asia' },
+  JP:  { platform: 'jp1', regional: 'asia' },
+
+  OCE: { platform: 'oc1', regional: 'sea' },
+  SG:  { platform: 'sg2', regional: 'sea' },
+  PH:  { platform: 'ph2', regional: 'sea' },
+  TH:  { platform: 'th2', regional: 'sea' },
+  TW:  { platform: 'tw2', regional: 'sea' },
+  VN:  { platform: 'vn2', regional: 'sea' },
+};
+
+// Convert region choice to routing values, use defaults if missing
+export function resolveRegion(regionMaybe) {
+  const fallback = (process.env.DEFAULT_REGION || 'NA').toUpperCase();
+  const region = (regionMaybe || fallback).toUpperCase();
+  const routes = REGION_TO_ROUTES[region];
+  if (!routes) throw new Error(`Unknown region: ${region}`);
+  return { region, ...routes };
+}
+
+function mustGetEnv(name) {
+    const value = process.env[name];
+    if (!value) {
+        throw new Error(`Environment variable ${name} is required`);
+    }
+    return value;
+}
+
+const RIOT_API_KEY = mustGetEnv('RIOT_API_KEY');
+
+async function riotFetchJson(url) {
+    const res = await fetch(url, {
+        headers: {
+            'X-Riot-Token': RIOT_API_KEY,
+        },
+    });
+
+    if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Riot API request failed: ${res.status} on ${url}: ${body}`);
+    }
+
+    return res.json();
+}
+
+export async function getAccountByRiotId( {regional = defaultRegional, gameName, tagLine} ) {
+    const url = `https://${regional}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(
+    gameName
+    )}/${encodeURIComponent(tagLine)}`;
+    
+  return riotFetchJson(url);
+}
+
+export async function getTFTRankByPuuid({ platform, puuid }) {
+  const url = `https://${platform}.api.riotgames.com/tft/league/v1/by-puuid/${encodeURIComponent(puuid)}`;
+  return riotFetchJson(url);
+}
 
 // --- Data Dragon (TFT regalia) cache ---
 let ddragonVersionCache = null;
@@ -42,75 +129,6 @@ async function loadTFTRegalia() {
 
     tftRegaliaCache = await res.json();
     return tftRegaliaCache;
-}
-
-const PLATFORM_TO_REGIONAL = {
-  na1: 'americas',
-  na: 'americas',
-  br1: 'americas',
-  la1: 'americas',
-  la2: 'americas',
-
-  euw1: 'europe',
-  eun1: 'europe',
-  tr1: 'europe',
-  ru: 'europe',
-
-  kr: 'asia',
-  jp1: 'asia',
-
-  oc1: 'sea',
-  sg2: 'sea',
-  ph2: 'sea',
-  th2: 'sea',
-  tw2: 'sea',
-  vn2: 'sea',
-};
-
-export function normalizePlatform(platformMaybe) {
-    return (platformMaybe || defaultPlatform).toLowerCase();
-}
-
-export function platformToRegional(platform) {
-    return PLATFORM_TO_REGIONAL[platform] || defaultRegional;
-}
-
-function mustGetEnv(name) {
-    const value = process.env[name];
-    if (!value) {
-        throw new Error(`Environment variable ${name} is required`);
-    }
-    return value;
-}
-
-const RIOT_API_KEY = mustGetEnv('RIOT_API_KEY');
-
-async function riotFetchJson(url) {
-    const res = await fetch(url, {
-        headers: {
-            'X-Riot-Token': RIOT_API_KEY,
-        },
-    });
-
-    if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`Riot API request failed: ${res.status} on ${url}: ${body}`);
-    }
-
-    return res.json();
-}
-
-export async function getAccountByRiotId( {regional = defaultRegional, gameName, tagLine} ) {
-    const url = `https://${regional}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(
-    gameName
-    )}/${encodeURIComponent(tagLine)}`;
-    
-  return riotFetchJson(url);
-}
-
-export async function getTFTRankByPuuid({ platform, puuid }) {
-  const url = `https://${platform}.api.riotgames.com/tft/league/v1/by-puuid/${encodeURIComponent(puuid)}`;
-  return riotFetchJson(url);
 }
 
 export async function getTftRegaliaThumbnailUrl({ queueType, tier }) {

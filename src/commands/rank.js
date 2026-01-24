@@ -1,10 +1,10 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { 
     getAccountByRiotId, 
-    normalizePlatform, 
-    platformToRegional,
     getTFTRankByPuuid,
     getTftRegaliaThumbnailUrl,
+    REGION_CHOICES,
+    resolveRegion
  } from '../riot.js';
 
 /* Convert's rank entry to a formatted one line string.
@@ -57,7 +57,6 @@ async function buildQueueEmbed({account, label, entry}) {
     });
 
     embed.setThumbnail(thumbUrl || 'https://placehold.co/96x96/png?text=TFT');
-
     return embed;
 }
 
@@ -79,21 +78,21 @@ export default {
         )
         .addStringOption((opt) =>
             opt
-            .setName('platform')
-            .setDescription('Platform routing like na1, euw1, kr ')
-            .setRequired(false)
+            .setName('region')
+            .setDescription('Region like NA, EUW, KR')
+            .setRequired(true)
+            .addChoices(...REGION_CHOICES)
         ),
 
     async execute(interaction) {
         // 1. Pull user inputs from disc command
         const gameName = interaction.options.getString('gamename', true);
         const tagLine = interaction.options.getString('tagline', true);
-        const platformInput = interaction.options.getString('platform', false);
-        
-        // 2. Normalize platform + get regional routing
-        const platform = normalizePlatform(platformInput);
-        const regional = platformToRegional(platform);
 
+        // 2. Normalize platform + get regional routing
+        const regionInput = interaction.options.getString('region', true);       
+        const {platform, regional } = resolveRegion(regionInput);
+        
         // 3. Defer reply in case of Riot API delay
         await interaction.deferReply();
 
