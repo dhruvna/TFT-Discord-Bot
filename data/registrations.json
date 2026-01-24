@@ -1,0 +1,24 @@
+{
+  "288456610366357505": {
+    "accounts": [
+      {
+        "key": "dhruvna#0813@na1",
+        "gameName": "dhruvna",
+        "tagLine": "0813",
+        "platform": "na1",
+        "puuid": "sGBMsQxmN1SCBEt2Jupimw7Htz6ww_Jcb7ttBX_gifBJHS0xaqMI4aGLBFSjMrAlhaHqe0maYgQebg",
+        "addedBy": "509479213338722314",
+        "addedAt": "2026-01-24T01:37:54.819Z"
+      },
+      {
+        "key": "loneronin#wbg@na",
+        "gameName": "LoneRonin",
+        "tagLine": "WBG",
+        "platform": "na",
+        "puuid": "CMtRMjOCWOb8si5vw8r6EuDZVx8aXrgbyxf-a7nOjOYh8yJwvtLNlZklOmv8yLoe-Ok61lbbNRN0zg",
+        "addedBy": "375450686806032396",
+        "addedAt": "2026-01-24T01:38:45.936Z"
+      }
+    ]
+  }
+}

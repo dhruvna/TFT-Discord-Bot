@@ -46,6 +46,7 @@ async function loadTFTRegalia() {
 
 const PLATFORM_TO_REGIONAL = {
   na1: 'americas',
+  na: 'americas',
   br1: 'americas',
   la1: 'americas',
   la2: 'americas',
