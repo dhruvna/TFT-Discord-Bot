@@ -77,7 +77,9 @@ async function riotFetchJson(url) {
     return res.json();
 }
 
-export async function getAccountByRiotId( {regional = defaultRegional, gameName, tagLine} ) {
+const { regional: DEFAULT_REGIONAL } = resolveRegion(process.env.DEFAULT_REGION || "NA");
+
+export async function getAccountByRiotId( {regional = DEFAULT_REGIONAL, gameName, tagLine} ) {
     const url = `https://${regional}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(
     gameName
     )}/${encodeURIComponent(tagLine)}`;
@@ -147,4 +149,12 @@ export async function getTftRegaliaThumbnailUrl({ queueType, tier }) {
   if (!file) return null;
 
   return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-regalia/${file}`;
+}
+
+// function to build leagueofgraphs url for a gamename#tagline
+
+export function getLeagueOfGraphsUrl({ gameName, tagLine }) {
+    const encodedName = encodeURIComponent(gameName);
+    const encodedTag = encodeURIComponent(tagLine);
+    return `https://www.leagueofgraphs.com/tft/summoner/na/${encodedName}-${encodedTag}`;
 }

@@ -28,6 +28,8 @@ export async function loadDb() {
 }
 
 export async function saveDb(db) {
+    await ensureDataFile();
+    
     const tmp = `${DATA_PATH}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(db, null, 2), 'utf-8');
     await fs.rename(tmp, DATA_PATH);

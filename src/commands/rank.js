@@ -4,7 +4,8 @@ import {
     getTFTRankByPuuid,
     getTftRegaliaThumbnailUrl,
     REGION_CHOICES,
-    resolveRegion
+    resolveRegion,
+    getLeagueOfGraphsUrl,
  } from '../riot.js';
 
 /* Convert's rank entry to a formatted one line string.
@@ -46,10 +47,11 @@ function addQueueSection(fields, label, entry) {
 async function buildQueueEmbed({account, label, entry}) {
     const fields = [];
     addQueueSection(fields, label, entry);
-
+    const profileUrl = getLeagueOfGraphsUrl({ gameName: account.gameName, tagLine: account.tagLine });
     const embed = new EmbedBuilder()
         .setTitle(`${account.gameName}#${account.tagLine} — ${label}`)
         .addFields(fields)
+        .setURL(profileUrl);
 
     const thumbUrl = await getTftRegaliaThumbnailUrl({
         queueType: entry.queueType,
