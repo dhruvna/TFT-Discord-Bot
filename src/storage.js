@@ -51,6 +51,11 @@ export async function listGuildAccounts(guildId) {
   return guild?.accounts ?? [];
 }
 
+export async function getGuildAccountByKey(guildId, key) {
+    const accounts = await listGuildAccounts(guildId);
+    return accounts.find((a) => a.key === key) ?? null;
+}
+
 export async function upsertGuildAccount(guildId, account) {
     const db = await loadDb();
     const guild = ensureGuild(db, guildId);

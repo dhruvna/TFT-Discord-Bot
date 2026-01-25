@@ -1,12 +1,13 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { 
-    getAccountByRiotId, 
     getTFTRankByPuuid,
     getTftRegaliaThumbnailUrl,
-    REGION_CHOICES,
-    resolveRegion,
     getLeagueOfGraphsUrl,
  } from '../riot.js';
+import { 
+    listGuildAccounts,
+    getGuildAccountByKey 
+} from "../storage.js";
 
 /* Convert's rank entry to a formatted one line string.
    Example: Emerald II - 75 LP */
@@ -29,6 +30,7 @@ function addQueueSection(fields, label, entry) {
     const wins = entry.wins ?? 0;
     const losses = entry.losses ?? 0;
     const wr = computeWinrate(wins, losses);
+
     // Header / rank line
     fields.push({
         name: label,
@@ -68,73 +70,104 @@ export default {
         .setDescription("Look up ranked info for a Riot ID")
         .addStringOption((opt) =>
             opt
-            .setName('gamename')
-            .setDescription('Riot ID Gamename (before #)')
-            .setRequired(true)
-        )
-        .addStringOption((opt) =>
-            opt
-            .setName('tagline')
-            .setDescription('Riot ID Tagline (after #)')
-            .setRequired(true)
-        )
-        .addStringOption((opt) =>
-            opt
-            .setName('region')
-            .setDescription('Region like NA, EUW, KR')
-            .setRequired(true)
-            .addChoices(...REGION_CHOICES)
+                .setName('account')
+                .setDescription('Select a registered Riot ID')
+                .setRequired(true)
+                .setAutocomplete(true)
         ),
 
-    async execute(interaction) {
-        // 1. Pull user inputs from disc command
-        const gameName = interaction.options.getString('gamename', true);
-        const tagLine = interaction.options.getString('tagline', true);
+    async autocomplete(interaction) {
+        const guildId = interaction.guildId;
+        if (!guildId) {
+            await interaction.respond([]);
+            return;
+        }
 
-        // 2. Normalize platform + get regional routing
-        const regionInput = interaction.options.getString('region', true);       
-        const {platform, regional } = resolveRegion(regionInput);
+        const focused = interaction.options.getFocused() ?? "";
+        const q = focused.toLowerCase();
+
+        const accounts = await listGuildAccounts(guildId);
+
+        const filtered = 
+            q.length === 0
+                ? accounts
+                : accounts.filter(a => {
+                    const name = `${a.gameName}#${a.tagLine}`.toLowerCase();
+                    const region = String(a.region ?? "").toLowerCase();
+                    return name.includes(q) || region.includes(q);
+                });
         
-        // 3. Defer reply in case of Riot API delay
+        await interaction.respond(
+            filtered.slice(0, 25).map(a => ({
+                name: `${a.gameName}#${a.tagLine} (${a.region})`,
+                value: a.key,
+            }))
+        );
+    },
+    
+    async execute(interaction) {
+        // 1. Make sure command is run in server/guild only
+        const guildId = interaction.guildId;
+        if (!guildId) {
+            await interaction.reply({
+                content: "This command can only be used inside a server (not DMs).",
+                ephemeral: true,
+            });
+            return;
+        }   
+
+        // 2. Defer reply in case of Riot API delays
         await interaction.deferReply();
 
-        // 4. Riot ID -> Account PUUID
-        const account = await getAccountByRiotId({ regional, gameName, tagLine });
-        
-        // 5. PUUID -> TFT Entries (Ranked/Double Up/etc)
-        const tftEntries = await getTFTRankByPuuid({
-            platform, 
-            puuid: account.puuid 
-        });
+        // 3. Determine selected account
+        const key = interaction.options.getString('account', true);
+        const stored = await getGuildAccountByKey(guildId, key);
 
-        // 6. Pull out queues we care about
+        if (!stored) {
+            await interaction.editReply(
+                "The selected account is not registered in this server. Try registering again."
+            );
+            return;
+        }
+
+        // 4. PUUID -> TFT Entries (Ranked/Double Up/etc)
+        const tftEntries = await getTFTRankByPuuid({
+            platform: stored.platform, 
+            puuid: stored.puuid 
+        });
+        // 5. Pull out queues we care about
         const rankedEntry = tftEntries.find(e => e.queueType === 'RANKED_TFT');
         const doubleUpEntry = tftEntries.find(e => e.queueType === 'RANKED_TFT_DOUBLE_UP');
 
-        // 7. Build embed fields
+        // 6. Build embed fields
         const embeds = [];
 
         if (rankedEntry) {
             embeds.push(
-                await buildQueueEmbed({ account, label: 'Ranked', entry: rankedEntry })
+                await buildQueueEmbed({ account: stored, label: 'Ranked', entry: rankedEntry })
             );
         }
         
         if (doubleUpEntry) {
             embeds.push(
-                await buildQueueEmbed({ account, label: 'Double Up', entry: doubleUpEntry })
+                await buildQueueEmbed({ account: stored, label: 'Double Up', entry: doubleUpEntry })
             );
         }
-
-        // 8. If no ranked entries, show unranked message
+        
+        // 7. If no ranked entries, show unranked message
         if (embeds.length === 0) {
             const embed = new EmbedBuilder()
-                .setTitle(`${account.gameName}#${account.tagLine}'s TFT Rank:`)
+                .setTitle(`${stored.gameName}#${stored.tagLine}'s TFT Rank:`)
                 .setDescription('Unranked')
                 .setThumbnail('https://placehold.co/96x96/png?text=TFT')
             embeds.push(embed);
         }
+        
+        //8. Send reply with embeds
+        await interaction.editReply({ embeds: [embeds[0].toJSON()] });
 
-        await interaction.editReply({ embeds });
+        if (embeds[1]) {
+        await interaction.followUp({ embeds: [embeds[1].toJSON()] });
+        }
     },
 };

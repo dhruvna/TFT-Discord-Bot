@@ -20,7 +20,6 @@ export default {
         await interaction.deferReply({ ephemeral: true });
 
         const accounts = await listGuildAccounts(guildId);
-
         if (accounts.length === 0) {
             await interaction.editReply("No Riot IDs are registered in this server.");
             return;
