@@ -2,6 +2,8 @@ import { SlashCommandBuilder } from "discord.js";
 
 import {
     getAccountByRiotId,
+    getTFTRankByPuuid,
+    getTftMatchIdsByPuuid,
     REGION_CHOICES,
     resolveRegion,
 } from '../riot.js';
@@ -10,6 +12,7 @@ import {
     makeAccountKey,
     upsertGuildAccount,
 } from '../storage.js';
+import rank from "./rank.js";
 
 
 export default {
@@ -69,7 +72,34 @@ export default {
             return;
         }
 
-        // 6. Build stored record
+        // 6. Snapshot current TFT rank, for use in LP delta tracking
+        let rankSnapshot = [];
+        try {
+            const entries = await getTFTRankByPuuid({ platform, puuid: account.puuid });
+            const queues = new Set(['RANKED_TFT', 'RANKED_TFT_DOUBLE_UP']);
+
+            rankSnapshot = Object.fromEntries(
+                entries
+                .filter((e) => queues.has(e.queueType)) 
+                .map((e) => [
+                    e.queueType, 
+                    { tier: e.tier, rank: e.rank, lp: e.leaguePoints }
+                ])
+            );
+        } catch {
+            rankSnapshot = [];
+        }
+
+        // 7. Snapshot latest match ID, for use in game tracking
+        let lastMatchId = null;
+        try {
+            const ids = await getTftMatchIdsByPuuid({ regional, puuid: account.puuid, count: 1 });
+            lastMatchId = Array.isArray(ids) && ids.length > 0 ? ids[0] : null;
+        } catch {
+            lastMatchId = null;
+        }
+
+        // 8. Build stored record
         const stored = {
             key: makeAccountKey({ 
                 gameName: account.gameName,
@@ -80,18 +110,19 @@ export default {
             tagLine: account.tagLine,
             region,
             platform,
+            regional,
             puuid: account.puuid,
-            addedBy: interaction.user.id,
-            addedAt: new Date().toISOString(),
+            lastMatchId,
+            lastRankByQueue: rankSnapshot,
         };
 
-        // 7. Upsert into storage
+        // 9. Upsert into storage
         const { existed } = await upsertGuildAccount(guildId, stored);
 
-        // Confirm to user
+        // 10. Confirm to user
         if ( existed ) {
             await interaction.editReply(
-                `**${stored.gameName}#${stored.tagLine}** is already registered in this server.`,
+                `**Riot ID ${stored.gameName}#${stored.tagLine}** is already registered in this server.`,
             );
             return;
         } else {

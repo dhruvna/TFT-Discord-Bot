@@ -103,6 +103,15 @@ function toTitleCaseTier(tier) {
     return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
+export async function getTftMatchIdsByPuuid({ regional, puuid, count = 1 }) {
+    const safeCount = Math.max(1, Math.min(Number(count) || 1, 20));
+    const url = `https://${regional}.api.riotgames.com/tft/match/v1/matches/by-puuid/${encodeURIComponent(
+        puuid
+    )}/ids?count=${safeCount}`;
+
+    return riotFetchJson(url);
+}
+
 async function getLatestDDragonVersion() {
     if (ddragonVersionCache) return ddragonVersionCache;
 

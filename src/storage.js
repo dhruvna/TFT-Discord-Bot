@@ -62,20 +62,17 @@ export async function upsertGuildAccount(guildId, account) {
 
     const idx = guild.accounts.findIndex((a) => a.key === account.key);
 
-    let existed = false;
+    const existed = idx >= 0;
 
-    if (idx >= 0) {
-        existed = true;
+    if (existed) {
         guild.accounts[idx] = {
-            ...guild.accounts[idx], 
+            ...guild.accounts[idx],
             ...account,
-            addedBy: guild.accounts[idx].addedBy,
-            addedAt: guild.accounts[idx].addedAt,
         };
     } else {
         guild.accounts.push(account);
     }
-
+    
     await saveDb(db);
     return { account, existed };
 }
