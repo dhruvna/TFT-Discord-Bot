@@ -65,6 +65,15 @@ Live Match Tracking
 ![Day 2 Progress](images/Rank_Day2_Progress.png)
 
 ![Day 2 List Progress](images/List_Day2_Progress.png)
+
+**Day 3: 1/24/2026**
+- Rank command now supports dropdown, no more manual input
+- Fixed issue with only one embed sending when user has ranked + double up to show
+- League of graphs link shows on rank command
+- Added an unregister command
+
+![Day 3 Progress](images/RegUnregister_Day3_Progress.png)
+
 # Project Structure
 
 ```text

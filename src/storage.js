@@ -79,3 +79,16 @@ export async function upsertGuildAccount(guildId, account) {
     await saveDb(db);
     return { account, existed };
 }
+
+export async function removeGuildAccountByKey(guildId, key) {
+    const db = await loadDb();
+    const guild = db[guildId];
+    if (!guild?.accounts?.length) return null;
+
+    const idx = guild.accounts.findIndex((a) => a.key === key);
+    if (idx === -1) return null;
+
+    const [removed] = guild.accounts.splice(idx, 1);
+    await saveDb(db);
+    return removed;
+}
