@@ -3,7 +3,7 @@ import { SlashCommandBuilder } from "discord.js";
 import {
     getAccountByRiotId,
     getTFTRankByPuuid,
-    getTftMatchIdsByPuuid,
+    getTFTMatchIdsByPuuid,
     REGION_CHOICES,
     resolveRegion,
 } from '../riot.js';
@@ -93,7 +93,7 @@ export default {
         // 7. Snapshot latest match ID, for use in game tracking
         let lastMatchId = null;
         try {
-            const ids = await getTftMatchIdsByPuuid({ regional, puuid: account.puuid, count: 1 });
+            const ids = await getTFTMatchIdsByPuuid({ regional, puuid: account.puuid, count: 1 });
             lastMatchId = Array.isArray(ids) && ids.length > 0 ? ids[0] : null;
         } catch {
             lastMatchId = null;

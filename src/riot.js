@@ -103,13 +103,19 @@ function toTitleCaseTier(tier) {
     return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
-export async function getTftMatchIdsByPuuid({ regional, puuid, count = 1 }) {
+export async function getTFTMatchIdsByPuuid({ regional, puuid, count = 1 }) {
     const safeCount = Math.max(1, Math.min(Number(count) || 1, 20));
     const url = `https://${regional}.api.riotgames.com/tft/match/v1/matches/by-puuid/${encodeURIComponent(
         puuid
     )}/ids?count=${safeCount}`;
 
     return riotFetchJson(url);
+}
+
+export async function getLastTFTMatch({ regional, matchId}) {
+    const url = `https://${regional}.api.riotgames.com/tft/match/v1/matches/${encodeURIComponent(
+        matchId)}`;
+        return riotFetchJson(url);
 }
 
 async function getLatestDDragonVersion() {
@@ -166,4 +172,8 @@ export function getLeagueOfGraphsUrl({ gameName, tagLine }) {
     const encodedName = encodeURIComponent(gameName);
     const encodedTag = encodeURIComponent(tagLine);
     return `https://www.leagueofgraphs.com/tft/summoner/na/${encodedName}-${encodedTag}`;
+}
+
+export function getTFTMatchUrl({ regional, matchId }) {
+    return `https://www.leagueofgraphs.com/tft/match/${regional.toLowerCase()}/${matchId}`;
 }
