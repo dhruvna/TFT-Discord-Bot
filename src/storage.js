@@ -29,7 +29,6 @@ export async function loadDb() {
 
 export async function saveDb(db) {
     await ensureDataFile();
-
     const tmp = `${DATA_PATH}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(db, null, 2), 'utf-8');
     await fs.rename(tmp, DATA_PATH);
@@ -47,8 +46,7 @@ export function makeAccountKey({ gameName, tagLine, platform }) {
 
 export async function listGuildAccounts(guildId) {
   const db = await loadDb();
-  const guild = db[guildId];
-  return guild?.accounts ?? [];
+  return db[guildId]?.accounts ?? [];
 }
 
 export async function getGuildAccountByKey(guildId, key) {
@@ -56,25 +54,20 @@ export async function getGuildAccountByKey(guildId, key) {
     return accounts.find((a) => a.key === key) ?? null;
 }
 
-export async function upsertGuildAccount(guildId, account) {
-    const db = await loadDb();
+export async function upsertGuildAccount(db, guildId, account) {
     const guild = ensureGuild(db, guildId);
 
     const idx = guild.accounts.findIndex((a) => a.key === account.key);
-
     const existed = idx >= 0;
 
-    if (existed) {
-        guild.accounts[idx] = {
-            ...guild.accounts[idx],
-            ...account,
-        };
-    } else {
-        guild.accounts.push(account);
-    }
-    
-    await saveDb(db);
+    if (existed) guild.accounts[idx] = { ...guild.accounts[idx], ...account };
+    else guild.accounts.push(account);
+
     return { account, existed };
+}
+
+export async function saveDbIfChanged(db, didChange) {
+  if (didChange) await saveDb(db);
 }
 
 export async function removeGuildAccountByKey(guildId, key) {

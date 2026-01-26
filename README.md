@@ -15,7 +15,7 @@ A Discord bot built with **Node.js**, **discord.js**, and the **Riot Games API**
 ### Persistent Storage
 - Uses a local JSON database at:
   ```
-  ./data/registrations.json
+  ./user_data/registrations.json
   ```
 - Automatically:
   - Creates the `data/` directory if missing
@@ -71,8 +71,16 @@ Live Match Tracking
 - Fixed issue with only one embed sending when user has ranked + double up to show
 - League of graphs link shows on rank command
 - Added an unregister command
+- After a game, embed is sent in discord with a link to the LeagueOfGraphs page. WIP
+- Keeping snapshots of last LP, last game id, etc to make this possible
 
-![Day 3 Progress](images/RegUnregister_Day3_Progress.png)
+![Day 3 Registration Progress](images/RegUnregister_Day3_Progress.png)
+![Day 3 Tracker Progress](images/MatchTracking_Day3_Progress.png)
+
+**Day 4: 1/25/2026**
+- Fixed link structure for post game tracking
+- Better updating json to track lp snapshots without error
+
 
 # Project Structure
 
@@ -87,7 +95,7 @@ Live Match Tracking
 │   └── rank.js             # /rank command (in progress)
 ├── riot.js                 # Riot Games API wrapper
 ├── storage.js              # JSON persistence layer
-├── data/
+├── user_data/
 │   └── registrations.json # Auto-created database file
 └── README.md
 ```

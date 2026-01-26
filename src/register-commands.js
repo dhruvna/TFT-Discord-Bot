@@ -4,15 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 
+import { mustGetEnv} from './utils/utils.js';
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-
-function mustGetEnv(name) {
-    const value = process.env[name];
-    if (!value) {
-        throw new Error(`Environment variable ${name} is required`);
-    }
-    return value;
-}
 
 const token = mustGetEnv('DISCORD_BOT_TOKEN');
 const clientId = mustGetEnv('DISCORD_CLIENT_ID');
