@@ -31,16 +31,23 @@ A Discord bot built with **Node.js**, **discord.js**, and the **Riot Games API**
   - Riot ID → PUUID
   - Platform routing (e.g. `na1`) → regional routing (e.g. `americas`)
 
-## Planned / In Progress
+## Automated Match Tracking (TFT)
 
-### Automated Match Tracking (TFT)
-Goal: the bot posts a match result embed automatically after a registered user finishes a game.
-- Poll most recent matchId periodically (since “current game” endpoint is unreliable)
-- Detect newly completed match by comparing to saved `lastMatchId`
-- Fetch match details + current rank snapshot
-- Compute LP delta from previous saved snapshot
-- Post result embed with match link
+The bot automatically posts a match result embed after a registered player finishes a TFT game.
 
+Current behavior:
+- Periodically polls each registered account’s most recent match ID
+- Detects newly completed matches by comparing against stored `lastMatchId`
+- Fetches match details and final placement
+- Fetches current ranked snapshot
+- Computes LP delta from the previously saved snapshot
+- Posts a styled embed including:
+  - Placement
+  - LP change
+  - Current rank
+  - Match link (LeagueOfGraphs)
+
+# TODO
 ### Leaderboard
 - Server leaderboard by rank/LP
 
@@ -48,6 +55,7 @@ Goal: the bot posts a match result embed automatically after a registered user f
 - `/lastmatch` command
 - Optional match history browsing
 
+-----------------------------------------
 
 # Progress
 **Day 1: 1/22/2026**
@@ -91,8 +99,16 @@ Live Match Tracking
 - Fixed link structure for post game tracking
 - Better updating json to track lp snapshots without error
 - Plenty of redundant code is currently present at EOD, but functionality works. Next up, we trim the fat
+- Operation works but is unstable
 
 ![Day 4 Tracker Progress](images/MatchTracking_Day4_Progress.png)
+
+**Day 5: 1/26/2026**
+- Match tracking fully functional and stable
+- Improved match result embed design (Victory / Defeat cards)
+- Fixed LP snapshot overwrites and async embed bugs
+- Refactored polling to safely persist rank and match state
+- System now stable enough for feature iteration and cleanup
 
 # Project Structure
 
@@ -113,3 +129,23 @@ Live Match Tracking
 │   └── registrations.json  # Auto-created DB
 └── README.md
 ```
+
+## Configuration
+
+The bot requires the following environment variables:
+
+- `DISCORD_BOT_TOKEN`  
+  Discord bot token
+
+- `RIOT_API_KEY`  
+  Riot Games API key (TFT)
+
+- `DISCORD_CHANNEL_ID`  
+  Channel ID where automated match result embeds will be posted
+
+Optional:
+- `MATCH_POLL_INTERVAL_SECONDS` (default: 60)  
+  How often to poll for new matches
+
+- `MATCH_POLL_PER_ACCOUNT_DELAY_MS` (default: 250)  
+  Delay between polling each account to avoid rate limits

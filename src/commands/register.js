@@ -15,14 +15,7 @@ import {
     upsertGuildAccount,
 } from '../storage.js';
 
-function pickRankSnapshot(entries) {
-    const queues = new Set(['RANKED_TFT', 'RANKED_TFT_DOUBLE_UP']);
-    return Object.fromEntries(
-        (entries ?? [])
-        .filter((e) => queues.has(e.queueType))
-        .map((e) => [e.queueType, { tier: e.tier, rank: e.rank, lp: e.leaguePoints }])
-    );
-}
+import { pickRankSnapshot } from '../utils/tft.js';
 
 export default {
     data: new SlashCommandBuilder()
