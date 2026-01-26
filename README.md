@@ -2,42 +2,52 @@
 
 A Discord bot built with **Node.js**, **discord.js**, and the **Riot Games API** that allows users to register Riot IDs per server, list registered accounts, and fetch competitive data (with plans for live match tracking).
 
-# Current Features
+## Features
+
 ### Riot ID Registration (Per Server)
-- Register one or more Riot IDs to a Discord server 
+- Register one or more Riot IDs to a Discord server
 - Data is isolated per server using the Discord `guildId`
 
 ### List Registered Accounts
-- `/list` command displays all Riot IDs registered in the current server
-- Shows:
-  - `gameName#tagLine (Region)`
+- `/list` displays all Riot IDs registered in the current server
+- Format: `gameName#tagLine (Region)`
+
+### Rank Lookup
+- `/rank` fetches TFT ranked data
+- Supports region selection via dropdown (reduces user error)
+- Includes a link to external match/rank pages (e.g., LeagueOfGraphs) when available
 
 ### Persistent Storage
-- Uses a local JSON database at:
-  ```
-  ./user_data/registrations.json
-  ```
+- Local JSON database:
+  - `./user_data/registrations.json`
 - Automatically:
-  - Creates the `data/` directory if missing
+  - Creates the `user_data/` directory if missing
   - Creates `registrations.json` if missing
-- Atomic writes using a temporary file + rename
+- Atomic writes (temp file + rename)
 
 ### Riot API Wrapper
 - Centralized Riot API logic in `riot.js`
 - Handles:
-  - Riot ID → PUUID lookup
-  - Region → regional routing (e.g. `na1` → `americas`)
-- Sensible defaults for regional routing (configurable via env)
+  - Riot ID → PUUID
+  - Platform routing (e.g. `na1`) → regional routing (e.g. `americas`)
 
-# Planned Features
+## Planned / In Progress
 
-- Live match tracking (TFT)
-  - Detect when someone starts a match
-  - Detect newly completed matches & update previous embed
-  - Post result embeds automatically in Discord
-- Leaderboard
-- Add match history + match detail endpoints
-- Implement `/lastmatch` command
+### Automated Match Tracking (TFT)
+Goal: the bot posts a match result embed automatically after a registered user finishes a game.
+- Poll most recent matchId periodically (since “current game” endpoint is unreliable)
+- Detect newly completed match by comparing to saved `lastMatchId`
+- Fetch match details + current rank snapshot
+- Compute LP delta from previous saved snapshot
+- Post result embed with match link
+
+### Leaderboard
+- Server leaderboard by rank/LP
+
+### Match History / Detail Commands
+- `/lastmatch` command
+- Optional match history browsing
+
 
 # Progress
 **Day 1: 1/22/2026**
@@ -80,7 +90,9 @@ Live Match Tracking
 **Day 4: 1/25/2026**
 - Fixed link structure for post game tracking
 - Better updating json to track lp snapshots without error
+- Plenty of redundant code is currently present at EOD, but functionality works. Next up, we trim the fat
 
+![Day 4 Tracker Progress](images/MatchTracking_Day4_Progress.png)
 
 # Project Structure
 
@@ -89,18 +101,13 @@ Live Match Tracking
 ├── index.js                # Bot entry point
 ├── register-commands.js    # Registers slash commands
 ├── commands/
-│   ├── ping.js         # /ping command (test bot is alive)
-│   ├── register.js         # /register command
-│   ├── list.js             # /list command
-│   └── rank.js             # /rank command (in progress)
+│   ├── register.js         # /register
+│   ├── unregister.js       # /unregister
+│   ├── list.js             # /list
+│   └── rank.js             # /rank
 ├── riot.js                 # Riot Games API wrapper
 ├── storage.js              # JSON persistence layer
-├── user_data/
-│   └── registrations.json # Auto-created database file
+├── data/
+│   └── registrations.json  # Auto-created DB
 └── README.md
 ```
-
-Test Commands:
-/rank gamename:dhruvna tagline:0813 
-/rank gamename:ProMembean tagline:NA2 
-/rank gamename:So0nMo0n tagline:NA1 
