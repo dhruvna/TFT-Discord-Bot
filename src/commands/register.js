@@ -12,41 +12,35 @@ import {
     makeAccountKey,
     upsertGuildAccount,
 } from '../storage.js';
-import rank from "./rank.js";
 
+function pickRankSnapshot(entries) {
+    const queues = new Set(['RANKED_TFT', 'RANKED_TFT_DOUBLE_UP']);
+    return Object.fromEntries(
+        (entries ?? [])
+        .filter((e) => queues.has(e.queueType))
+        .map((e) => [e.queueType, { tier: e.tier, rank: e.rank, lp: e.leaguePoints }])
+    );
+}
 
 export default {
     data: new SlashCommandBuilder()
         .setName("register")
         .setDescription("Register Riot ID in this server for future lookup")
         .addStringOption((opt) =>
-            opt
-            .setName('gamename')
-            .setDescription('Riot ID Gamename (before #)')
-            .setRequired(true)
+            opt.setName('gamename').setDescription('Riot ID Gamename (before #)').setRequired(true)
         )
         .addStringOption((opt) =>
-            opt
-            .setName('tagline')
-            .setDescription('Riot ID Tagline (after #)')
-            .setRequired(true)
+            opt.setName('tagline').setDescription('Riot ID Tagline (after #)').setRequired(true)
         )
         .addStringOption((opt) =>
-            opt
-            .setName('region')
-            .setDescription('Region like NA, EUW, KR')
-            .setRequired(true)
-            .addChoices(...REGION_CHOICES)
+            opt.setName('region').setDescription('Region like NA, EUW, KR').setRequired(true).addChoices(...REGION_CHOICES)
         ),
 
     async execute(interaction) {
         // 1. Ensure command is run in a server only
         const guildId = interaction.guildId;
         if (!guildId) {
-            await interaction.reply({
-                content: "This command can only be used in a server (not DMs).",
-                ephemeral: true,
-            });
+            await interaction.reply({content: "This command can only be used in a server (not DMs).", ephemeral: true});
             return;
         }
 
@@ -65,29 +59,18 @@ export default {
         let account;
         try {
             account = await getAccountByRiotId({ regional,  gameName, tagLine });
-        } catch (err) {
-            await interaction.editReply(
-                "Couldn't find that Riot ID. Please double-check the spelling and try again.",
-            );
+        } catch {
+            await interaction.editReply("Couldn't find that Riot ID. Please double-check spelling and try again.");
             return;
         }
 
         // 6. Snapshot current TFT rank, for use in LP delta tracking
-        let rankSnapshot = [];
+        let lastRankByQueue;
         try {
             const entries = await getTFTRankByPuuid({ platform, puuid: account.puuid });
-            const queues = new Set(['RANKED_TFT', 'RANKED_TFT_DOUBLE_UP']);
-
-            rankSnapshot = Object.fromEntries(
-                entries
-                .filter((e) => queues.has(e.queueType)) 
-                .map((e) => [
-                    e.queueType, 
-                    { tier: e.tier, rank: e.rank, lp: e.leaguePoints }
-                ])
-            );
+            lastRankByQueue = pickRankSnapshot(entries);
         } catch {
-            rankSnapshot = [];
+            lastRankByQueue = {};
         }
 
         // 7. Snapshot latest match ID, for use in game tracking
@@ -101,11 +84,7 @@ export default {
 
         // 8. Build stored record
         const stored = {
-            key: makeAccountKey({ 
-                gameName: account.gameName,
-                tagLine: account.tagLine,
-                platform,
-            }),
+            key: makeAccountKey({ gameName: account.gameName, tagLine: account.tagLine, platform }),
             gameName: account.gameName,
             tagLine: account.tagLine,
             region,
@@ -113,23 +92,18 @@ export default {
             regional,
             puuid: account.puuid,
             lastMatchId,
-            lastRankByQueue: rankSnapshot,
+            lastRankByQueue,
         };
 
         // 9. Upsert into storage
         const { existed } = await upsertGuildAccount(guildId, stored);
 
         // 10. Confirm to user
-        if ( existed ) {
-            await interaction.editReply(
-                `**Riot ID ${stored.gameName}#${stored.tagLine}** is already registered in this server.`,
-            );
-            return;
-        } else {
-            await interaction.editReply(
-                `Successfully registered Riot ID **${stored.gameName}#${stored.tagLine}** for this server.`,
-            );
+        if (existed) {
+            await interaction.editReply(`**${stored.gameName}#${stored.tagLine}** is already registered in this server.`);
+        return;
         }
-        
+    
+        await interaction.editReply(`Successfully registered **${stored.gameName}#${stored.tagLine}** for this server.`); 
     },
 };
