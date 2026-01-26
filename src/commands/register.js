@@ -10,6 +10,8 @@ import {
 
 import {
     makeAccountKey,
+    loadDb,
+    saveDb,
     upsertGuildAccount,
 } from '../storage.js';
 
@@ -96,12 +98,14 @@ export default {
         };
 
         // 9. Upsert into storage
-        const { existed } = await upsertGuildAccount(guildId, stored);
+        const db = await loadDb();
+        const { existed } = await upsertGuildAccount(db, guildId, stored);
+        await saveDb(db);
 
         // 10. Confirm to user
         if (existed) {
             await interaction.editReply(`**${stored.gameName}#${stored.tagLine}** is already registered in this server.`);
-        return;
+            return;
         }
     
         await interaction.editReply(`Successfully registered **${stored.gameName}#${stored.tagLine}** for this server.`); 

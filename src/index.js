@@ -6,9 +6,9 @@ import path from 'node:path';
 import url from 'node:url';
 import { Collection } from 'discord.js';
 
-import { loadDb, upsertGuildAccount} from './storage.js';
+import { loadDb, saveDb, upsertGuildAccount} from './storage.js';
 import { 
-    getLastTFTMatch,
+    getTFTMatch,
     getTFTMatchIdsByPuuid,
     getTFTRankByPuuid,
     getLeagueOfGraphsUrl,
@@ -84,7 +84,7 @@ function pickRankSnapshot(entries) {
         'RANKED_TFT_DOUBLE_UP',])
     return Object.fromEntries(
         entries
-        .fileter((e) => queues.has(e.queueType))
+        .filter((e) => queues.has(e.queueType))
         .map((e) => [
             e.queueType,
             { tier: e.tier, rank: e.rank, lp: e.leaguePoints },
@@ -133,7 +133,7 @@ async function startMatchPoller(client) {
     const intervalSeconds = Number(getOptionalEnv('MATCH_POLL_INTERVAL_SECONDS', '60'));
     const perAccountDelayMs = Number(getOptionalEnv('MATCH_POLL_PER_ACCOUNT_DELAY_MS', '250'));
 
-    const channelId = process.env.DISCORD_TRACK_CHANNEL_ID;
+    const channelId = process.env.DISCORD_CHANNEL_ID;
     if (!channelId) {
         throw new Error("MATCH_POLL_CHANNEL_ID is not set");
     }
@@ -173,24 +173,29 @@ async function startMatchPoller(client) {
                     }
 
                     if (latest !== account.lastMatchId) {
-                        const match = await getLastTFTMatch({ regional: account.regional, matchId: latest });
+                        const match = await getTFTMatch({ regional: account.regional, matchId: latest });
                         const participants = match?.info?.participants ?? [];
                         const me = participants.find((p => p.puuid === account.puuid));
                         const placement = me?.placement ?? null;
 
                         const before = account.lastRankByQueue ?? {};
-                        let after = {};
+                        let after = before;
+
                         try {
-                            const entries = await getTFTMatchIdsByPuuid({ platform: account.platform, puuid: account.puuid });
+                            const entries = await getTFTRankByPuuid({ 
+                                platform: account.platform,
+                                puuid: account.puuid
+                            });
+                            // const entries = await getTFTMatchIdsByPuuid({ platform: account.platform, puuid: account.puuid });
                             after = pickRankSnapshot(entries);
                         } catch {
-                            after = {};
                         }
 
                         const deltas = {};
                         for (const [queueType, afterRank] of Object.entries(after)) {
                             const beforeLp = before?.[queueType]?.lp;
-                            const afterLp = afterRank?.leaguePoints;
+                            const afterLp = afterRank?.lp;
+                            
                         if (typeof beforeLp === 'number' && typeof afterLp === 'number') {
                             deltas[queueType] = afterLp - beforeLp;
                         }
@@ -207,7 +212,7 @@ async function startMatchPoller(client) {
                         await channel.send({ embeds: [embed] });
                     }
 
-                    await upsertGuildAccount(guildId, {
+                    await upsertGuildAccount(db, guildId, {
                         ...account,
                         lastMatchId: latest,
                         lastRankByQueue: after,
@@ -220,6 +225,7 @@ async function startMatchPoller(client) {
             await sleep(perAccountDelayMs);
             }
         }
+        await saveDb(db);
     };
 
     await tick();

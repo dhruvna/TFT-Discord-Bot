@@ -107,7 +107,9 @@ Live Match Tracking
 │   └── rank.js             # /rank
 ├── riot.js                 # Riot Games API wrapper
 ├── storage.js              # JSON persistence layer
-├── data/
+├── utils/
+│   └── utils.js            # Utilities for other files
+├── user_data/
 │   └── registrations.json  # Auto-created DB
 └── README.md
 ```
