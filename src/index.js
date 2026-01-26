@@ -86,32 +86,50 @@ async function startMatchPoller(client) {
     const intervalSeconds = Number(getOptionalEnv('MATCH_POLL_INTERVAL_SECONDS', '60'));
     const perAccountDelayMs = Number(getOptionalEnv('MATCH_POLL_PER_ACCOUNT_DELAY_MS', '250'));
 
-    const channelId = process.env.DISCORD_CHANNEL_ID;
-    if (!channelId) {
-        throw new Error("DISCORD_CHANNEL_ID is not set");
-    }
+    // const channelId = process.env.DISCORD_CHANNEL_ID;
+    // if (!channelId) {
+    //     throw new Error("DISCORD_CHANNEL_ID is not set");
+    // }
 
     const tick = async () => {
+        const fallbackChannelId = process.env.DISCORD_CHANNEL_ID || null;
+        const channelCache = new Map(); // channelId -> channel (cache per tick)
+
         const db = await loadDb();
         const guildIds = Object.keys(db);
         if (guildIds.length === 0) return;
 
-        let channel = null;
-        if (channelId) {
-            try {
-                channel = await client.channels.fetch(channelId);
-            } catch (err) {
-                console.error("Error fetching channel for match poller:", err);
-                channel = null;
-            }
-        }
+        // let channel = null;
+        // if (channelId) {
+        //     try {
+        //         channel = await client.channels.fetch(channelId);
+        //     } catch (err) {
+        //         console.error("Error fetching channel for match poller:", err);
+        //         channel = null;
+        //     }
+        // }
 
         for (const guildId of guildIds) {
             const guild = db[guildId];
             const accounts = guild?.accounts ?? [];
 
-            for (const account of accounts) {
+            const channelIdForGuild = guild?.channelId || fallbackChannelId;
 
+            let channel = null;
+            if (channelIdForGuild) {
+                if (channelCache.has(channelIdForGuild)) {
+                    channel = channelCache.get(channelIdForGuild);
+                } else {
+                    try {
+                        channel = await client.channels.fetch(channelIdForGuild);
+                    } catch (err) {
+                        console.error(`Error fetching channel ${channelIdForGuild} for guild ${guildId}:`, err);
+                        channel = null;
+                    }
+                    channelCache.set(channelIdForGuild, channel);
+                }
+            }
+            for (const account of accounts) {
                 if (!account?.puuid || !account?.regional || !account?.platform || !account?.key) continue;
                 try {
                     const ids = await getTFTMatchIdsByPuuid({

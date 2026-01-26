@@ -35,8 +35,9 @@ export async function saveDb(db) {
 }
 
 function ensureGuild(db, guildId) {
-    if (!db[guildId]) db[guildId] = { accounts: [] };
+    if (!db[guildId]) db[guildId] = {}
     if (!Array.isArray(db[guildId].accounts)) db[guildId].accounts = [];
+    if (!("channelId" in db[guildId])) db[guildId].channelId = null;
     return db[guildId];
 }
 
@@ -81,4 +82,14 @@ export async function removeGuildAccountByKey(guildId, key) {
     const [removed] = guild.accounts.splice(idx, 1);
     await saveDb(db);
     return removed;
+}
+
+export function getGuildChannelId(db, guildId) {
+    return db?.[guildId]?.channelId ?? null;
+}
+
+export async function setGuildChannel(db, guildId, channelId) {
+    const g = ensureGuild(db, guildId);
+    g.channelId = channelId;
+    return { channelId };
 }
