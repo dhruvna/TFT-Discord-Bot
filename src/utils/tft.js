@@ -45,7 +45,7 @@ export function normalizePlacement({ placement, queueType}) {
     if (typeof placement !== "number" || placement < 1 || placement > 8) return null;
 
     if (queueType === "RANKED_TFT_DOUBLE_UP") {
-        return Math.floor(placement +1) / 2; //
+        return Math.ceil(placement / 2); //
     } 
 
     return placement;
