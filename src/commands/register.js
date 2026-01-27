@@ -65,7 +65,7 @@ export default {
             const entries = await getTFTRankByPuuid({ platform, puuid: account.puuid });
 
             const now = Date.now();
-            const wanted = new Set(["RANKED_TFT", "RANKED_TFT_DOUBLE_UP", "RANKED_TFT_TURBO"]);
+            const wanted = new Set(["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"]);
             
             for (const e of Array.isArray(entries) ? entries : []) {
                 if (!wanted.has(e.queueType)) continue;

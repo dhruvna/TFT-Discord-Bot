@@ -31,9 +31,6 @@ export function detectQueueMetaFromMatch(match) {
     if (queueId === 1100) {
         return { queueId, mode: "RANKED", queueType: "RANKED_TFT", label: "Ranked" };
     }
-    if (queueId === 1130) {
-        return { queueId, mode: "HYPER ROLL", queueType: "RANKED_TFT_TURBO", label: "Hyper Roll" };
-    }
     if (queueId === 1160) {
         return { queueId, mode: "DOUBLE UP (Workshop)", queueType: "RANKED_TFT_DOUBLE_UP", label: "Double Up" };
     }
@@ -86,8 +83,7 @@ export async function buildMatchResultEmbed({
 
     const isRankedQueue =
         queueType === "RANKED_TFT" ||
-        queueType === "RANKED_TFT_DOUBLE_UP" ||
-        queueType === "RANKED_TFT_TURBO"; // Hyper Roll (if you support it)
+        queueType === "RANKED_TFT_DOUBLE_UP";
 
     const lpChangeValue = isRankedQueue ? formatDelta(d) : "—";
     const rankValue =

@@ -7,7 +7,6 @@ import { getTFTRankByPuuid } from "../riot.js";
 const QUEUE_OPTIONS = [
     { name: "Ranked", value: "RANKED_TFT" },
     { name: "Double Up", value: "RANKED_TFT_DOUBLE_UP" },
-    { name: "Hyper Roll", value: "RANKED_TFT_TURBO" },
 ];
 
 // Tier ordering (low -> high)
