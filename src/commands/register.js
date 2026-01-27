@@ -60,14 +60,29 @@ export default {
         }
 
         // 6. Snapshot current TFT rank, for use in LP delta tracking
-        let lastRankByQueue;
+        let lastRankByQueue = {};
         try {
             const entries = await getTFTRankByPuuid({ platform, puuid: account.puuid });
-            lastRankByQueue = pickRankSnapshot(entries);
-        } catch {
-            lastRankByQueue = {};
-        }
 
+            const now = Date.now();
+            const wanted = new Set(["RANKED_TFT", "RANKED_TFT_DOUBLE_UP", "RANKED_TFT_TURBO"]);
+            
+            for (const e of Array.isArray(entries) ? entries : []) {
+                if (!wanted.has(e.queueType)) continue;
+
+                lastRankByQueue[e.queueType] = {
+                    tier: e.tier,
+                    rank: e.rank ?? null,                 // null for MASTER+ and some queues
+                    lp: Number(e.leaguePoints ?? 0),
+                    wins: Number(e.wins ?? 0),
+                    losses: Number(e.losses ?? 0),
+                    lastUpdatedAt: now,
+                };
+            }
+        } catch {
+        lastRankByQueue = {};
+        }
+        
         // 7. Snapshot latest match ID, for use in game tracking
         let lastMatchId = null;
         try {
