@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getTFTRankByPuuid, getTftRegaliaThumbnailUrl, getLeagueOfGraphsUrl } from "../riot.js";
-import { listGuildAccounts, getGuildAccountByKey } from "../storage.js";
+import { getGuildAccountByKey } from "../storage.js";
 import { respondWithAccountChoices } from "../utils/utils.js";
 
 /* Convert's rank entry to a formatted one line string.
@@ -46,7 +46,7 @@ async function buildQueueEmbed({account, label, entry}) {
         .setURL(profileUrl);
 
     const thumbUrl = await getTftRegaliaThumbnailUrl({ queueType: entry.queueType, tier: entry.tier, });
-    if (thumbUrl) embed.setThumbnail(thumbUrl || 'https://placehold.co/96x96/png?text=TFT');
+    if (thumbUrl) embed.setThumbnail(thumbUrl ?? 'https://placehold.co/96x96/png?text=TFT');
 
     return embed;
 }

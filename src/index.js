@@ -171,9 +171,30 @@ async function startMatchPoller(client) {
                         ? (deltas?.[queueType] ?? 0)
                         : 0;
 
-                    // const queueType = detectQueueTypeFromMatch(match) || "RANKED_TFT";                    
-                    // const afterRank = after?.[queueType] ?? null;
-                    // const delta = deltas?.[queueType] ?? 0;
+                    const isRankedQueue = 
+                        queueType === "RANKED_TFT" ||
+                        queueType === "RANKED_TFT_DOUBLE_UP";
+
+                    let recapEvents = Array.isArray(account.recapEvents) ? account.recapEvents : [];
+                    
+                    if (isRankedQueue) {
+                        const gameMs = match.info.game_datetime ?? Date.now();
+
+                        const already = recapEvents.some((e) => e.matchId === latest)
+                        if (!already) {
+                            recapEvents.push({
+                                matchId: latest,
+                                at: gameMs,
+                                queueType,
+                                delta: Number(delta ?? 0),
+                                placement: Number(normPlacement ?? 0),
+                            });
+
+                            recapEvents = recapEvents
+                                .sort((a, b) => b.at - a.at)
+                                .slice(-250);
+                        }
+                    }
 
                     if (channel) {
                         const embed = await buildMatchResultEmbed({
@@ -191,6 +212,7 @@ async function startMatchPoller(client) {
                         ...account,
                         lastMatchId: latest,
                         lastRankByQueue: after,
+                        recapEvents,
                     });
                 }
             } catch (err) {

@@ -103,6 +103,7 @@ export default {
             puuid: account.puuid,
             lastMatchId,
             lastRankByQueue,
+            recapEvents: [],
         };
 
         // 9. Upsert into storage
