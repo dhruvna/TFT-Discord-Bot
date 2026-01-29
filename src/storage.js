@@ -35,9 +35,28 @@ export async function saveDb(db) {
 }
 
 function ensureGuild(db, guildId) {
-    if (!db[guildId]) db[guildId] = {}
+    if (!db[guildId]) db[guildId] = {};
     if (!Array.isArray(db[guildId].accounts)) db[guildId].accounts = [];
     if (!("channelId" in db[guildId])) db[guildId].channelId = null;
+
+    if (!("recap" in db[guildId]) || typeof db[guildId].recap !== "object" || db[guildId].recap === null) {
+        db[guildId].recap = {
+            enabled: false,
+            mode: "DAILY",          // DAILY | WEEKLY
+            queue: "RANKED_TFT",    // RANKED_TFT | RANKED_TFT_DOUBLE_UP
+            lastSentYmd: null,      // "YYYY-MM-DD" to prevent double posting
+        };
+    } else {
+        // If older configs exist, ensure required keys exist.
+        if (!("enabled" in db[guildId].recap)) db[guildId].recap.enabled = false;
+        if (!("mode" in db[guildId].recap)) db[guildId].recap.mode = "DAILY";
+        if (!("queue" in db[guildId].recap)) db[guildId].recap.queue = "RANKED_TFT";
+        if (!("lastSentYmd" in db[guildId].recap)) db[guildId].recap.lastSentYmd = null;
+
+        // Optional cleanup: remove legacy hour/minute if they exist
+        if ("hour" in db[guildId].recap) delete db[guildId].recap.hour;
+        if ("minute" in db[guildId].recap) delete db[guildId].recap.minute;
+    }
     return db[guildId];
 }
 
@@ -92,4 +111,15 @@ export async function setGuildChannel(db, guildId, channelId) {
     const g = ensureGuild(db, guildId);
     g.channelId = channelId;
     return { channelId };
+}
+
+export function getGuildRecapConfig(db, guildId) {
+    const g = ensureGuild(db, guildId);
+    return g.recap;
+}
+
+export function setGuildRecapConfig(db, guildId, patch) {
+    const g = ensureGuild(db, guildId);
+    g.recap = { ...g.recap, ...patch };
+    return g.recap;
 }

@@ -1,10 +1,11 @@
+// src/commands/recap.js
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { listGuildAccounts } from "../storage.js";
 
 /* -------------------- Constants -------------------- */
 const MODE_CHOICES = [
-  { name: "Daily (last 24h)", value: "daily" },
-  { name: "Weekly (last 7d)", value: "weekly" },
+  { name: "Daily (last 24h)", value: "DAILY" },
+  { name: "Weekly (last 7d)", value: "WEEKLY" },
 ];
 
 const QUEUE_CHOICES = [
@@ -12,24 +13,16 @@ const QUEUE_CHOICES = [
   { name: "Double Up", value: "RANKED_TFT_DOUBLE_UP" },
 ];
 
-const ALL_RANKED_QUEUES = new Set([
-  "RANKED_TFT",
-  "RANKED_TFT_DOUBLE_UP",
-]);
-
 /* -------------------- Helpers -------------------- */
 
 function hoursForMode(mode) {
   return mode === "WEEKLY" ? 24 * 7 : 24;
 }
 
-function wantedQueuesFor(queue) {
-  return new Set([queue]);
-}
-
 function queueLabel(queue) {
   if (queue === "RANKED_TFT") return "Ranked";
   if (queue === "RANKED_TFT_DOUBLE_UP") return "Double Up";
+  return queue;
 }
 
 function modeLabel(mode) {
@@ -54,18 +47,12 @@ function accountName(a) {
   return `${a.gameName}#${a.tagLine}`;
 }
 
-/* -------------------- Core Logic -------------------- */
-
-function computeRecapRows(accounts, cutoffMs, wantedQueues) {
+function computeRecapRows(accounts, cutoffMs, wantedQueue) {
   return accounts.map((account) => {
-    const events = Array.isArray(account.recapEvents)
-      ? account.recapEvents
-      : [];
+    const events = Array.isArray(account.recapEvents) ? account.recapEvents : [];
 
     const filtered = events.filter(
-      (e) =>
-        Number(e?.at ?? 0) >= cutoffMs &&
-        wantedQueues.has(e.queueType)
+      (e) => Number(e?.at ?? 0) >= cutoffMs && e.queueType === wantedQueue
     );
 
     return {
@@ -99,78 +86,70 @@ function buildLines(rows, limit) {
   });
 }
 
+function buildRecapEmbed({ rows, mode, queue, hours }) {
+  const totalGames = rows.reduce((s, r) => s + r.games, 0);
+
+  const gains = sortByGains(rows);
+  const losses = sortByLosses(rows);
+
+  const gainsText = (buildLines(gains, 25).join("\n") || "—").slice(0, 1024);
+  const lossesText =
+    losses.length > 0
+      ? buildLines(losses, 10).join("\n").slice(0, 1024)
+      : "—";
+
+  return new EmbedBuilder()
+    .setTitle(`${modeLabel(mode)} Recap`)
+    .addFields(
+      { name: "Top gains", value: gainsText, inline: true },
+      { name: "Top losses", value: lossesText, inline: true }
+    )
+    .setFooter({
+      text: `${rows.length} players | ${totalGames} games • ${queueLabel(queue)} • last ${hours}h`,
+    })
+    .setTimestamp(new Date());
+}
+
 /* -------------------- Command -------------------- */
 export default {
   data: new SlashCommandBuilder()
     .setName("recap")
-    .setDescription("Daily or weekly recap for Ranked TFT and Double Up.")
+    .setDescription("Show recap now; optionally enable daily autopost for this server.")
     .addStringOption((opt) =>
-      opt
-        .setName("mode")
-        .setDescription("Daily or weekly recap")
-        .setRequired(false)
-        .addChoices(...MODE_CHOICES)
+      opt.setName("queue").setDescription("Queue to recap").setRequired(true).addChoices(...QUEUE_CHOICES)
     )
     .addStringOption((opt) =>
-      opt
-        .setName("queue")
-        .setDescription("Queue to recap")
-        .setRequired(false)
-        .addChoices(...QUEUE_CHOICES)
+      opt.setName("mode").setDescription("Daily or weekly recap").setRequired(false).addChoices(...MODE_CHOICES)
     ),
 
     async execute(interaction) {
         const guildId = interaction.guildId;
         if (!guildId) {
-        await interaction.reply({
-            content: "This command can only be used inside a server.",
-            ephemeral: true,
-        });
-        return;
+            await interaction.reply({ content: "This command can only be used inside a server.", ephemeral: true });
+            return;
         }
-        
+
+        /* ---------- POST RECAP ---------- */
         await interaction.deferReply();
 
         const mode = interaction.options.getString("mode") ?? "DAILY";
-        const queue = interaction.options.getString("queue") ?? "RANKED_TFT";
+        const queue = interaction.options.getString("queue");
 
         const hours = hoursForMode(mode);
         const cutoff = Date.now() - hours * 60 * 60 * 1000;
 
         const accounts = await listGuildAccounts(guildId);
         if (!accounts.length) {
-        await interaction.editReply(
-            "No accounts registered in this server yet. Use `/register` first."
-        );
-        return;
+            await interaction.editReply("No accounts registered in this server yet. Use `/register` first.");
+            return;
         }
 
-        const wantedQueues = wantedQueuesFor(queue);
-        const rows = computeRecapRows(accounts, cutoff, wantedQueues);
-
-        const totalGames = rows.reduce((s, r) => s + r.games, 0);
-
-        const gains = sortByGains(rows);
-        const losses = sortByLosses(rows);
-
-        const gainsText = (buildLines(gains, 25).join("\n") || "—").slice(0, 1024);
-        const lossesText =
-        losses.length > 0
-            ? buildLines(losses, 10).join("\n").slice(0, 1024)
-            : "—";
-
-        const embed = new EmbedBuilder()
-        .setTitle(`${modeLabel(mode)} Recap`)
-        .addFields(
-            { name: "Top gains", value: gainsText, inline: true },
-            { name: "Top losses", value: lossesText, inline: true }
-        )
-        .setFooter({
-            text: `${rows.length} players | ${totalGames} games • ${queueLabel(queue)} • last ${hours}h`,
-        })
-        .setTimestamp(new Date());
-
+        const rows = computeRecapRows(accounts, cutoff, queue);
+        console.log(
+            `[recap] guild=${guildId} mode=${mode} queue=${queue} accounts=${accounts.length} cutoff=${new Date(cutoff).toISOString()}`
+        );
+        const embed = buildRecapEmbed({ rows, mode, queue, hours });
+        
         await interaction.editReply({ embeds: [embed] });
     },
 };
-    
