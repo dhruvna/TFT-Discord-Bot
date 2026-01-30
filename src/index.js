@@ -17,6 +17,7 @@ import {
     buildMatchResultEmbed,
     detectQueueMetaFromMatch,
     normalizePlacement,
+    standardizeRankLp
  } from './utils/tft.js';
 
 
@@ -156,17 +157,34 @@ async function startMatchPoller(client) {
 
                         const deltas = {};
                         for (const [queueType, afterRank] of Object.entries(after)) {
-                            const beforeLp = before?.[queueType]?.lp;
-                            const afterLp = afterRank?.lp;
+                            const beforeRank = before?.[queueType];
 
-                            if (typeof beforeLp === 'number' && typeof afterLp === 'number') {
-                                deltas[queueType] = afterLp - beforeLp;
+                            const beforeStd = standardizeRankLp(beforeRank);
+                            const afterStd = standardizeRankLp(afterRank);
+                            
+                            if (Number.isFinite(beforeStd) && Number.isFinite(afterStd)) {
+                                deltas[queueType] = afterStd - beforeStd;
                             }
                         }
                     
                     const meta = detectQueueMetaFromMatch(match);
                     const queueType = meta.queueType || "RANKED_TFT";
-
+                    
+                    const announceQueues = guild?.announceQueues ?? ["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"];
+                    const shouldAnnounce = !announceQueues || announceQueues.includes(queueType);
+                    if (!shouldAnnounce) {
+                        console.log(
+                            `[match-poller] skipping announcement for guild=${guildId} account=${account.key} match=${latest} queue=${queueType} (not in announceQueues)`
+                        );
+                        await upsertGuildAccount(db, guildId, { 
+                            ...account,
+                            lastMatchId: latest,
+                            lastRankByQueue: after,
+                        });
+                        await sleep(perAccountDelayMs);
+                        continue;
+                    }
+                    
                     const normPlacement = normalizePlacement({ placement, queueType });
 
                     const afterRank = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP")
@@ -290,7 +308,6 @@ async function startRecapAutoposter(client) {
             } catch {
                 channel = null;
             }
-            if (!channel || !channel.isTextBased()) continue;
 
             if (!channel || !channel.isTextBased()) {
                 console.log(

@@ -1,5 +1,5 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
-import { loadDb, saveDb, setGuildChannel } from "../storage.js";
+import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
+import { loadDb, saveDb, setGuildChannel, setGuildQueueConfig } from "../storage.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -10,6 +10,13 @@ export default {
                 .setName("channel")
                 .setDescription("Channel to post match tracking embeds in")
                 .setRequired(true)
+                .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+        )
+        .addBooleanOption(opt => 
+            opt
+                .setName("ranked_only")
+                .setDescription("Announce only ranked TFT matches")
+                .setRequired(false)
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
@@ -34,10 +41,25 @@ export default {
 
         await interaction.deferReply({ ephemeral: true });
 
+        const rankedOnly = interaction.options.getBoolean("ranked_only") ?? true;
+        const effectiveRankedOnly = rankedOnly === null ? true : rankedOnly;
+
+        await interaction.deferReply({ ephemeral: true });
+
         const db = await loadDb();
+
         await setGuildChannel(db, guildId, channel.id);
+
+        if (effectiveRankedOnly) {
+            await setGuildQueueConfig(db, guildId, ["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"]);
+        } else {
+            await setGuildQueueConfig(db, guildId, null);
+        }
         await saveDb(db);
 
-        await interaction.editReply(`Match result announcements will be sent to ${channel}.`);
+        await interaction.editReply(
+            `Match result announcements will be sent to ${channel}.\n` +
+                `Queue filter: **${effectiveRankedOnly ? "Ranked + Double Up only" : "All queues"}**`
+        );
     },
 }

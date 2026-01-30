@@ -39,6 +39,10 @@ function ensureGuild(db, guildId) {
     if (!Array.isArray(db[guildId].accounts)) db[guildId].accounts = [];
     if (!("channelId" in db[guildId])) db[guildId].channelId = null;
 
+    if (!("announceQueues" in db[guildId])) {
+        db[guildId].announceQueues = ["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"];
+    }
+
     if (!("recap" in db[guildId]) || typeof db[guildId].recap !== "object" || db[guildId].recap === null) {
         db[guildId].recap = {
             enabled: false,
@@ -122,4 +126,10 @@ export function setGuildRecapConfig(db, guildId, patch) {
     const g = ensureGuild(db, guildId);
     g.recap = { ...g.recap, ...patch };
     return g.recap;
+}
+
+export async function setGuildQueueConfig(db, guildId, queues) {
+    const g = ensureGuild(db, guildId);
+    g.announceQueues = queues;
+    return g.announceQueues;
 }

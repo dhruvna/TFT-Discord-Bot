@@ -3,6 +3,47 @@
 import { EmbedBuilder } from "discord.js";
 import { getTFTMatchUrl, getTftRegaliaThumbnailUrl } from "../riot.js";
 
+const TIER_BASE = {
+  IRON: 0,
+  BRONZE: 400,
+  SILVER: 800,
+  GOLD: 1200,
+  PLATINUM: 1600,
+  EMERALD: 2000,
+  DIAMOND: 2400,
+};
+
+// Keep monotonic above Diamond I
+const MASTER_PLUS_BASE = 2800;
+
+const DIV_OFFSET = {
+  IV: 0,
+  III: 100,
+  II: 200,
+  I: 300,
+};
+
+export function standardizeRankLp(rank) {
+    if (!rank) return null;
+
+    const tier = typeof rank.tier === "string" ? rank.tier.toUpperCase() : null;
+    const div = typeof rank.rank === "string" ? rank.rank.toUpperCase() : null;
+    const lp = Number(rank.lp);
+
+    if (!tier || !Number.isFinite(lp)) return null;
+
+    // Handle Master, Grandmaster, Challenger
+    if (["MASTER", "GRANDMASTER", "CHALLENGER"].includes(tier)) {
+        return MASTER_PLUS_BASE + lp;
+    }
+
+    const base = TIER_BASE[tier];
+    const offset = DIV_OFFSET[div];
+
+    if (!Number.isFinite(base) || !Number.isFinite(offset)) return null;
+    return base + offset + lp;  
+}
+
 export function pickRankSnapshot(entries) {
     const queues = new Set(['RANKED_TFT', 'RANKED_TFT_DOUBLE_UP']);
     return Object.fromEntries(
@@ -49,8 +90,10 @@ export function normalizePlacement({ placement, queueType}) {
 }
 
 export function formatDelta(delta) {
-    if (typeof delta !== "number") return "+0"
-    return delta >= 0 ? `+${delta}` : `${delta}`;
+    if (!Number.isFinite(delta)) return "-";
+    if (delta > 0) return `+${delta}`;
+    if (delta < 0) return `-${Math.abs(delta)}`;
+    return "0";
 }
 
 export function placementToOrdinal(placement) {
@@ -84,15 +127,17 @@ export async function buildMatchResultEmbed({
     const isRankedQueue =
         queueType === "RANKED_TFT" ||
         queueType === "RANKED_TFT_DOUBLE_UP";
-
+    
+    const isWin = p !== null && p <= 4;
+    const isLoss = p !== null && p >= 5;
+    
     const lpChangeValue = isRankedQueue ? formatDelta(d) : "—";
     const rankValue =
     isRankedQueue && afterRank?.tier
         ? `${afterRank.tier} ${afterRank.rank} — ${afterRank.lp} LP`
         : "—";
             
-    const isWin = p !== null && p <= 4;
-    const isLoss = p !== null && p >= 5;
+
     
     const embed = new EmbedBuilder().setURL(matchUrl).setTimestamp(new Date());
     
@@ -111,13 +156,13 @@ export async function buildMatchResultEmbed({
     const riotId = `${account.gameName}#${account.tagLine}`;
     const ord = p ? placementToOrdinal(p) : 'N/A';
 
-    if (isWin && d >= 0) {
+    if (isWin) {
         embed.setColor(0x2dcf71).setTitle(`${label} Victory for ${riotId}!`);
         if (p === 1) embed.setDescription(`**dhruvna coaching DIFF**`);
         else if (p === 2) embed.setDescription(`Highroller took my 1st smh`);
         else if (p === 3) embed.setDescription(`Not too shabby for what I thought would be a 6th!`);
         else embed.setDescription(`A 4th is a 4th, we be aight`);
-    } else if (isLoss && d < 0) {
+    } else if (isLoss) {
         embed.setColor(0xf34e3c).setTitle(`${label} Defeat for ${riotId}...`);
         if (p === 5) embed.setDescription(`Hey 1st loser isn't too bad`);
         else if (p === 6) embed.setDescription(`Shoulda gone six sevennnnnn`);
