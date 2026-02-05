@@ -63,20 +63,29 @@ function computeRecapRows(accounts, cutoffMs, wantedQueue) {
   });
 }
 
+// sort by lp gains, then by games played, then by account name. only include positive gains
 function sortByGains(rows) {
-  return [...rows].sort((a, b) => {
-    if (b.delta !== a.delta) return b.delta - a.delta;
-    if (b.games !== a.games) return b.games - a.games;
-    return accountName(a.account)
-      .toLowerCase()
-      .localeCompare(accountName(b.account).toLowerCase());
-  });
+  return rows
+    .filter((r) => r.delta > 0)
+    .sort((a, b) => {
+      if (b.delta !== a.delta) return b.delta - a.delta;
+      if (b.games !== a.games) return b.games - a.games;
+      return accountName(a.account)
+        .toLowerCase()
+        .localeCompare(accountName(b.account).toLowerCase());
+    });
 }
 
 function sortByLosses(rows) {
   return rows
     .filter((r) => r.delta < 0)
-    .sort((a, b) => a.delta - b.delta);
+    .sort((a, b) => {
+      if (a.delta !== b.delta) return a.delta - b.delta;
+      if (b.games !== a.games) return b.games - a.games;
+      return accountName(a.account)
+        .toLowerCase()
+        .localeCompare(accountName(b.account).toLowerCase());
+    });
 }
 
 function buildLines(rows, limit) {
@@ -114,7 +123,7 @@ function buildRecapEmbed({ rows, mode, queue, hours }) {
 export default {
   data: new SlashCommandBuilder()
     .setName("recap")
-    .setDescription("Show recap now; optionally enable daily autopost for this server.")
+    .setDescription("Show Ranked or Double Up recap now, either daily or weekly.")
     .addStringOption((opt) =>
       opt.setName("queue").setDescription("Queue to recap").setRequired(true).addChoices(...QUEUE_CHOICES)
     )

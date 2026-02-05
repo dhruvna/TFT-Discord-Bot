@@ -115,7 +115,7 @@ export default {
     await interaction.deferReply();
 
     const queueType = interaction.options.getString("queue") || "RANKED_TFT";
-    const limit = interaction.options.getInteger("limit") ?? 10;
+    const limit = interaction.options.getInteger("limit") ?? 15;
 
     const accounts = await listGuildAccounts(guildId);
     if (!accounts.length) {

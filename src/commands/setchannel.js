@@ -44,8 +44,6 @@ export default {
         const rankedOnly = interaction.options.getBoolean("ranked_only") ?? true;
         const effectiveRankedOnly = rankedOnly === null ? true : rankedOnly;
 
-        await interaction.deferReply({ ephemeral: true });
-
         const db = await loadDb();
 
         await setGuildChannel(db, guildId, channel.id);
