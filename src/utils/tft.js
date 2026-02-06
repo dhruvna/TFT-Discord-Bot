@@ -45,16 +45,27 @@ export function standardizeRankLp(rank) {
 }
 
 export function pickRankSnapshot(entries) {
+    const now = Date.now();
     const queues = new Set(['RANKED_TFT', 'RANKED_TFT_DOUBLE_UP']);
+
+    const rows = Array.isArray(entries) ? entries : [];
+
     return Object.fromEntries(
-        (entries ?? [])
+        rows
             .filter((e) => queues.has(e.queueType))
             .map((e) => [
-                e.queueType, 
-                { tier: e.tier, rank: e.rank, lp: e.leaguePoints },
+                e.queueType,
+                { 
+                    tier: e.tier ?? null,
+                    rank: e.rank ?? null, // null for MASTER+ (and sometimes other cases)
+                    lp: Number(e.leaguePoints ?? 0),
+                    wins: Number(e.wins ?? 0),
+                    losses: Number(e.losses ?? 0),
+                    lastUpdatedAt: now,
+                },
             ])
-    );
-}
+        );
+    }
 
 export function getQueueIdFromMatch(match) {
     const info = match?.info;

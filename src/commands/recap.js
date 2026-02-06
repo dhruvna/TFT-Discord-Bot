@@ -66,7 +66,7 @@ function computeRecapRows(accounts, cutoffMs, wantedQueue) {
 // sort by lp gains, then by games played, then by account name. only include positive gains
 function sortByGains(rows) {
   return rows
-    .filter((r) => r.delta > 0)
+    .filter((r) => r.games > 0 && r.delta >= 0)
     .sort((a, b) => {
       if (b.delta !== a.delta) return b.delta - a.delta;
       if (b.games !== a.games) return b.games - a.games;

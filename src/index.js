@@ -344,7 +344,9 @@ async function startRecapAutoposter(client) {
             });
 
             // Simple embed builder (kept inline to avoid circular imports)
-            const sortGains = [...rows].sort((a, b) => {
+            const sortGains = [...rows]
+                .filter((r) => r.games > 0 && r.delta >= 0)
+                .sort((a, b) => {
                 if (b.delta !== a.delta) return b.delta - a.delta;
                 if (b.games !== a.games) return b.games - a.games;
                 const an = `${a.account.gameName}#${a.account.tagLine}`.toLowerCase();

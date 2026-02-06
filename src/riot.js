@@ -54,10 +54,12 @@ export function resolveRegion(regionMaybe) {
   return { region, ...routes };
 }
 
-const RIOT_API_KEY = mustGetEnv('RIOT_API_KEY');
+const RIOT_TFT_API_KEY = mustGetEnv('RIOT_TFT_API_KEY');
+const RIOT_LOL_API_KEY = mustGetEnv('RIOT_LOL_API_KEY');
 
-async function riotFetchJson(url) {
-    const res = await fetch(url, { headers: { "X-Riot-Token": RIOT_API_KEY } });
+async function riotFetchJson(url, gameType = "TFT") {
+    const apiKey = gameType === "TFT" ? RIOT_TFT_API_KEY : RIOT_LOL_API_KEY;
+    const res = await fetch(url, { headers: { "X-Riot-Token": apiKey } });
     if (!res.ok) {
         const body = await res.text();
         throw new Error(`Riot API request failed: ${res.status} on ${url}: ${body}`);
@@ -71,12 +73,12 @@ export async function getAccountByRiotId( {regional = DEFAULT_REGIONAL, gameName
     const url = `https://${regional}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(
     gameName
     )}/${encodeURIComponent(tagLine)}`;
-  return riotFetchJson(url);
+  return riotFetchJson(url, "TFT");
 }
 
 export async function getTFTRankByPuuid({ platform, puuid }) {
   const url = `https://${platform}.api.riotgames.com/tft/league/v1/by-puuid/${encodeURIComponent(puuid)}`;
-  return riotFetchJson(url);
+  return riotFetchJson(url, "TFT");
 }
 
 export async function getTFTMatchIdsByPuuid({ regional, puuid, count = 1 }) {
@@ -85,13 +87,13 @@ export async function getTFTMatchIdsByPuuid({ regional, puuid, count = 1 }) {
         puuid
     )}/ids?count=${safeCount}`;
 
-    return riotFetchJson(url);
+    return riotFetchJson(url, "TFT");
 }
 
 export async function getTFTMatch({ regional, matchId}) {
     const url = `https://${regional}.api.riotgames.com/tft/match/v1/matches/${encodeURIComponent(
         matchId)}`;
-        return riotFetchJson(url);
+        return riotFetchJson(url, "TFT");
 }
 
 // --- Data Dragon (TFT regalia) cache ---

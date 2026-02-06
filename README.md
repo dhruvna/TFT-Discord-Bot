@@ -110,6 +110,21 @@ Live Match Tracking
 - Refactored polling to safely persist rank and match state
 - System now stable enough for feature iteration and cleanup
 
+![Day 5 Leaderboard Progress](images/Leaderboard_Day5_Progress.png)
+
+**1/27/2026 - 2/6/2026**
+- Recap columns only show either wins or losses, win column no longer shows negatives / zeros
+- Update account info with rich information (include W/L/etc EVERYTIME)
+- Autopost recap every morning at 9AM 
+- Added command to config recap ```/recapconfig```
+- Added LP standardization so that division changes are handled properly (IRON: 0, PLATINUM: 1600, MASTERS: 2800+)
+- Various bug fixes
+![Day 6 Leaderboard Progress](images/Leaderboard_Day6_Progress.png)
+
+TODO
+- Host bot 24/7
+- LoL support
+
 # Project Structure
 
 ```text
