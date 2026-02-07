@@ -81,11 +81,12 @@ export async function getTFTRankByPuuid({ platform, puuid }) {
   return riotFetchJson(url, "TFT");
 }
 
-export async function getTFTMatchIdsByPuuid({ regional, puuid, count = 1 }) {
+export async function getTFTMatchIdsByPuuid({ regional, puuid, count = 1, start = 0 }) {
     const safeCount = Math.max(1, Math.min(Number(count) || 1, 20));
+    const safeStart = Math.max(0, Number(start) || 0);
     const url = `https://${regional}.api.riotgames.com/tft/match/v1/matches/by-puuid/${encodeURIComponent(
         puuid
-    )}/ids?count=${safeCount}`;
+    )}/ids?count=${safeCount}&start=${safeStart}`;
 
     return riotFetchJson(url, "TFT");
 }

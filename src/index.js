@@ -22,6 +22,7 @@ import {
 import { createRiotRateLimiter } from './utils/rateLimiter.js';
 import { buildRecapEmbed, computeRecapRows, hoursForMode } from './utils/recap.js';
 import { mustGetEnv, getOptionalEnv, parseIntEnv, sleep } from './utils/utils.js';
+import { match } from 'node:assert';
 
 // Login to Discord with the bot's token
 const token = mustGetEnv('DISCORD_BOT_TOKEN');
@@ -145,22 +146,67 @@ async function startMatchPoller(client) {
                             );
                         }
                     }
-                    await riotLimiter.acquire();
-                    const ids = await getTFTMatchIdsByPuuid({
-                        regional: account.regional,
-                        puuid: account.puuid,
-                        count: 1,
-                    });
 
-                    const latest = Array.isArray(ids) && ids.length > 0 ? ids[0] : null;
-                    if (!latest) {
+                    const matchBackfillLimit = 10;
+                    let unseenMatchIds = [];
+
+                    if (!account.lastMatchId) {
+                        await riotLimiter.acquire();
+                        const ids = await getTFTMatchIdsByPuuid({
+                            regional: account.regional,
+                            puuid: account.puuid,
+                            count: 1,
+                        });
+                        unseenMatchIds = Array.isArray(ids) ? ids.slice(0, 1) : [];
+                    } else {
+                        let start = 0;
+                        let foundLast = false;
+
+                        while (unseenMatchIds.length < matchBackfillLimit && !foundLast) {
+                            const remaining = matchBackfillLimit - unseenMatchIds.length;
+
+                            const count = Math.min(20, remaining); // fetch in batches of 20
+                            await riotLimiter.acquire();
+                            const ids = await getTFTMatchIdsByPuuid({
+                                regional: account.regional,
+                                puuid: account.puuid,
+                                count,
+                                start,
+                            });
+                            if (!Array.isArray(ids) || ids.length === 0) {
+                                break; // no more matches
+                            }
+
+                            for (const id of ids) {
+                                if (id === account.lastMatchId) {
+                                    foundLast = true;
+                                    break;
+                                }
+                                unseenMatchIds.push(id);
+                                if (unseenMatchIds.length >= matchBackfillLimit) {
+                                    break;
+                                } 
+                                if (foundLast || ids.length < count) break;
+                                start += ids.length;
+                            }
+                        }
+                        
+                        if (unseenMatchIds.length === 0) {
                         await sleep(perAccountDelayMs);
                         continue;
                     }
 
-                    if (latest !== account.lastMatchId) {
+                    const orderedMatchIds = [...unseenMatchIds].reverse();
+                    const before = account.lastRankByQueue ?? {};
+                    let after = before;
+                    let recapEvents = Array.isArray(account.recapEvents) ? account.recapEvents : [];
+                    const announceQueues = guild?.announceQueues ?? ["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"];
+                    let lastProcessedMatchId = account.lastMatchId;
+
+                    for (const [index, matchId] of orderedMatchIds.entries()) {
+                        const isMostRecent = index === orderedMatchIds.length - 1;
                         await riotLimiter.acquire();
-                        const match = await getTFTMatch({ regional: account.regional, matchId: latest });
+                        const match = await getTFTMatch({ regional: account.regional, matchId});
                         const participants = match?.info?.participants ?? [];
                         const me = participants.find((p => p.puuid === account.puuid));
                         const placement = me?.placement ?? null;
@@ -170,11 +216,7 @@ async function startMatchPoller(client) {
                         const isRankedQueue =
                             queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP";
 
-
-                        const before = account.lastRankByQueue ?? {};
-                        let after = before;
-                        
-                        if (isRankedQueue){
+                        if (isMostRecent && isRankedQueue) {
                             try {
                                 await riotLimiter.acquire();
                                 const entries = await getTFTRankByPuuid({
@@ -198,76 +240,128 @@ async function startMatchPoller(client) {
                             }
                         }
                     
-                    const announceQueues = guild?.announceQueues ?? ["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"];
+                    // const announceQueues = guild?.announceQueues ?? ["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"];
+                    // const shouldAnnounce = !announceQueues || announceQueues.includes(queueType);
+                    // if (!shouldAnnounce) {
+                    //     console.log(
+                    //         `[match-poller] skipping announcement for guild=${guildId} account=${account.key} match=${latest} queue=${queueType} (not in announceQueues)`
+                    //     );
+                    //     await upsertGuildAccount(db, guildId, { 
+                    //         ...account,
+                    //         lastMatchId: latest,
+                    //         lastRankByQueue: after,
+                    //     });
+                    //     didChange = true;
+                    //     await sleep(perAccountDelayMs);
+                    //     continue;
+                    // }
+                    
+                    // const normPlacement = normalizePlacement({ placement, queueType });
+
+                    // const afterRank = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP")
+                    //     ? (after?.[queueType] ?? null)
+                    //     : null;
                     const shouldAnnounce = !announceQueues || announceQueues.includes(queueType);
-                    if (!shouldAnnounce) {
-                        console.log(
-                            `[match-poller] skipping announcement for guild=${guildId} account=${account.key} match=${latest} queue=${queueType} (not in announceQueues)`
-                        );
-                        await upsertGuildAccount(db, guildId, { 
-                            ...account,
-                            lastMatchId: latest,
-                            lastRankByQueue: after,
-                        });
-                        didChange = true;
-                        await sleep(perAccountDelayMs);
-                        continue;
-                    }
-                    
-                    const normPlacement = normalizePlacement({ placement, queueType });
-
-                    const afterRank = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP")
-                        ? (after?.[queueType] ?? null)
-                        : null;
-
-                    const delta = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP")
-                        ? (deltas?.[queueType] ?? 0)
-                        : 0;
-
-                    let recapEvents = Array.isArray(account.recapEvents) ? account.recapEvents : [];
-                    
-                    if (isRankedQueue) {
-                        const gameMs = match.info.game_datetime ?? Date.now();
-
-                        const already = recapEvents.some((e) => e.matchId === latest)
-                        if (!already) {
-                            recapEvents.push({
-                                matchId: latest,
-                                at: gameMs,
-                                queueType,
-                                delta: Number(delta ?? 0),
-                                placement: Number(normPlacement ?? 0),
-                            });
-
-                            recapEvents = recapEvents
-                                .sort((a, b) => b.at - a.at)
-                                .slice(0, 250);
+                        if (!shouldAnnounce) {
+                            console.log(
+                                `[match-poller] skipping announcement for guild=${guildId} account=${account.key} match=${matchId} queue=${queueType} (not in announceQueues)`
+                            );
+                            lastProcessedMatchId = matchId;
+                            continue;
                         }
-                    }
+                    
+                    const normPlacement = normalizePlacement({ placement, queueType }); 
 
-                    console.log(
-                        `[match-poller] NEW match guild=${guildId} ${account.key} match=${latest} queue=${queueType} place=${normPlacement} delta=${delta}`
-                    );
+                    // const delta = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP")
+                    //     ? (deltas?.[queueType] ?? 0)
+                    //     : 0;
 
-                    if (channel) {
-                        const embed = await buildMatchResultEmbed({
-                            account,
-                            placement: normPlacement,
-                            matchId: latest,
-                            queueType, 
-                            delta,
-                            afterRank,
-                        });
-                        await channel.send({ embeds: [embed] });
-                    } else {
+                    // let recapEvents = Array.isArray(account.recapEvents) ? account.recapEvents : [];
+                    
+                    // if (isRankedQueue) {
+                    //     const gameMs = match.info.game_datetime ?? Date.now();
+
+                    //     const already = recapEvents.some((e) => e.matchId === latest)
+                    //     if (!already) {
+                    //         recapEvents.push({
+                    //             matchId: latest,
+                    //             at: gameMs,
+                    //             queueType,
+                    //             delta: Number(delta ?? 0),
+                    //             placement: Number(normPlacement ?? 0),
+                    //         });
+                    
+                    const afterRank = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP") && isMostRecent
+                            ? (after?.[queueType] ?? null)
+                            : null;
+
+                        const delta = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP") && isMostRecent
+                            ? (deltas?.[queueType] ?? 0)
+                            : 0;
+
+                        if (isRankedQueue) {
+                            const gameMs = match.info.game_datetime ?? Date.now();
+
+                            const already = recapEvents.some((e) => e.matchId === matchId);
+                            if (!already) {
+                                recapEvents.push({
+                                    matchId,
+                                    at: gameMs,
+                                    queueType,
+                                    delta: Number(delta ?? 0),
+                                    placement: Number(normPlacement ?? 0),
+                                });
+
+                                recapEvents = recapEvents
+                                    .sort((a, b) => b.at - a.at)
+                                    .slice(0, 250);
+                            }
+                        }
+                    // }
+
+                    // console.log(
+                    //     `[match-poller] NEW match guild=${guildId} ${account.key} match=${latest} queue=${queueType} place=${normPlacement} delta=${delta}`
+                    // );
+
+                    // if (channel) {
+                    //     const embed = await buildMatchResultEmbed({
+                    //         account,
+                    //         placement: normPlacement,
+                    //         matchId: latest,
+                    //         queueType, 
+                    //         delta,
+                    //         afterRank,
+                    //     });
+                    //     await channel.send({ embeds: [embed] });
+                    // } else {
                         console.log(
-                            `[match-poller] no channel for guild=${guildId} (channelId=${channelIdForGuild ?? "null"})`
+                            `[match-poller] NEW match guild=${guildId} ${account.key} match=${matchId} queue=${queueType} place=${normPlacement} delta=${delta}`
                         );
+
+                        if (channel) {
+                            const embed = await buildMatchResultEmbed({
+                                account,
+                                placement: normPlacement,
+                                matchId,
+                                queueType,
+                                delta,
+                                afterRank,
+                            });
+                            await channel.send({ embeds: [embed] });
+                        } else {
+                            console.log(
+                                `[match-poller] no channel for guild=${guildId} (channelId=${channelIdForGuild ?? "null"})`
+                            );
+                        }
+
+                        lastProcessedMatchId = matchId;
+
                     }
 
                     await upsertGuildAccount(db, guildId, {
                         ...account,
-                        lastMatchId: latest,
+                        // lastMatchId: latest,
+                        lastMatchId: lastProcessedMatchId,
                         lastRankByQueue: after,
                         recapEvents,
                     });
