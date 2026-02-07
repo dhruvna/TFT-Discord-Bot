@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 
-import { loadDb, saveDb, upsertGuildAccount} from './storage.js';
+import { loadDb, saveDbIfChanged, upsertGuildAccount} from './storage.js';
 import { 
     getTFTMatch,
     getTFTMatchIdsByPuuid,
@@ -66,16 +66,30 @@ function ymdLocal(d = new Date()) {
   return `${y}-${m}-${day}`;
 }
 
+function shouldRefreshRank(account, now, maxAgeMs) {
+  if (!account?.lastRankByQueue) return true;
+  const entries = Object.values(account.lastRankByQueue);
+  if (entries.length === 0) return true;
+  return entries.some((entry) => {
+    const lastUpdatedAt = Number(entry?.lastUpdatedAt ?? 0);
+    return !Number.isFinite(lastUpdatedAt) || now - lastUpdatedAt >= maxAgeMs;
+  });
+}
+
 async function startMatchPoller(client) {
     const intervalSeconds = Number(getOptionalEnv('MATCH_POLL_INTERVAL_SECONDS', '60'));
     const perAccountDelayMs = Number(getOptionalEnv('MATCH_POLL_PER_ACCOUNT_DELAY_MS', '250'));
     const riotLimiter = createRiotRateLimiter({ perSecond: 20, perTwoMinutes: 100 });
+    const rankRefreshMinutes = parseIntEnv('RANK_REFRESH_INTERVAL_MINUTES', '180', { min: 5, max: 24 * 60 });
+    const rankRefreshMs = rankRefreshMinutes * 60 * 1000;
+
 
     const tick = async () => {
         const fallbackChannelId = process.env.DISCORD_CHANNEL_ID || null;
         const channelCache = new Map(); // channelId -> channel (cache per tick)
 
         const db = await loadDb();
+        let didChange = false;
         const guildIds = Object.keys(db);
         if (guildIds.length === 0) return;
 
@@ -110,6 +124,28 @@ async function startMatchPoller(client) {
                 }
                 
                 try {
+                    const now = Date.now();
+                    if (shouldRefreshRank(account, now, rankRefreshMs)) {
+                        try {
+                            await riotLimiter.acquire();
+                            const entries = await getTFTRankByPuuid({
+                                platform: account.platform,
+                                puuid: account.puuid,
+                            });
+                            const refreshed = pickRankSnapshot(entries);
+                            await upsertGuildAccount(db, guildId, {
+                                ...account,
+                                lastRankByQueue: refreshed,
+                            });
+                            didChange = true;
+                        } catch (err) {
+                            console.error(
+                                `Error refreshing rank for account ${account.key} (guild=${guildId}):`,
+                                err
+                            );
+                        }
+                    }
+                    await riotLimiter.acquire();
                     const ids = await getTFTMatchIdsByPuuid({
                         regional: account.regional,
                         puuid: account.puuid,
@@ -128,19 +164,26 @@ async function startMatchPoller(client) {
                         const participants = match?.info?.participants ?? [];
                         const me = participants.find((p => p.puuid === account.puuid));
                         const placement = me?.placement ?? null;
+                        
+                        const meta = detectQueueMetaFromMatch(match);
+                        const queueType = meta.queueType || "RANKED_TFT";
+                        const isRankedQueue =
+                            queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP";
+
 
                         const before = account.lastRankByQueue ?? {};
                         let after = before;
-
-                        try {
-                            await riotLimiter.acquire();
-                            const entries = await getTFTRankByPuuid({ 
-                                platform: account.platform,
-                                puuid: account.puuid
-                            });
-                            // const entries = await getTFTMatchIdsByPuuid({ platform: account.platform, puuid: account.puuid });
-                            after = pickRankSnapshot(entries);
-                        } catch {
+                        
+                        if (isRankedQueue){
+                            try {
+                                await riotLimiter.acquire();
+                                const entries = await getTFTRankByPuuid({
+                                    platform: account.platform,
+                                    puuid: account.puuid,
+                                });
+                                after = pickRankSnapshot(entries);
+                            } catch {
+                            }
                         }
 
                         const deltas = {};
@@ -155,9 +198,6 @@ async function startMatchPoller(client) {
                             }
                         }
                     
-                    const meta = detectQueueMetaFromMatch(match);
-                    const queueType = meta.queueType || "RANKED_TFT";
-                    
                     const announceQueues = guild?.announceQueues ?? ["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"];
                     const shouldAnnounce = !announceQueues || announceQueues.includes(queueType);
                     if (!shouldAnnounce) {
@@ -169,6 +209,7 @@ async function startMatchPoller(client) {
                             lastMatchId: latest,
                             lastRankByQueue: after,
                         });
+                        didChange = true;
                         await sleep(perAccountDelayMs);
                         continue;
                     }
@@ -182,10 +223,6 @@ async function startMatchPoller(client) {
                     const delta = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP")
                         ? (deltas?.[queueType] ?? 0)
                         : 0;
-
-                    const isRankedQueue = 
-                        queueType === "RANKED_TFT" ||
-                        queueType === "RANKED_TFT_DOUBLE_UP";
 
                     let recapEvents = Array.isArray(account.recapEvents) ? account.recapEvents : [];
                     
@@ -234,6 +271,7 @@ async function startMatchPoller(client) {
                         lastRankByQueue: after,
                         recapEvents,
                     });
+                    didChange = true;
                 }
             } catch (err) {
                 console.error(
@@ -244,7 +282,7 @@ async function startMatchPoller(client) {
             await sleep(perAccountDelayMs);
             }
         }
-        await saveDb(db);
+        await saveDbIfChanged(db, didChange);
     };
 
     await tick();
@@ -261,6 +299,7 @@ async function startRecapAutoposter(client) {
         const fallbackChannelId = process.env.DISCORD_CHANNEL_ID || null;
 
         const db = await loadDb();
+        let didChange = false;
         const guildIds = Object.keys(db);
         if (guildIds.length === 0) return;
 
@@ -319,9 +358,10 @@ async function startRecapAutoposter(client) {
             await channel.send({ embeds: [embed] });
             
             guild.recap.lastSentYmd = today;
+            didChange = true;
             console.log(`[recap-autopost] sent guild=${guildId} today=${today}`);
         }
-        await saveDb(db);
+        await saveDbIfChanged(db, didChange);
   };
 
   // run tick every minute

@@ -120,6 +120,7 @@ Live Match Tracking
 - Added LP standardization so that division changes are handled properly (IRON: 0, PLATINUM: 1600, MASTERS: 2800+)
 - Various bug fixes
 ![Day 6 Leaderboard Progress](images/Leaderboard_Day6_Progress.png)
+![Day 7 Recap Progress](images/Recap_Day7_Progress.png)
 
 TODO
 - Host bot 24/7
