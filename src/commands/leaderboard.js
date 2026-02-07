@@ -2,8 +2,6 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 
 import { listGuildAccounts } from '../storage.js';
 
-import { getTFTRankByPuuid } from "../riot.js";
-
 const QUEUE_OPTIONS = [
     { name: "Ranked", value: "RANKED_TFT" },
     { name: "Double Up", value: "RANKED_TFT_DOUBLE_UP" },

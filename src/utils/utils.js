@@ -13,6 +13,14 @@ export function getOptionalEnv(name, fallback) {
   return v === undefined || v === "" ? fallback : v;
 }
 
+export function parseIntEnv(name, fallback, { min = -Infinity, max = Infinity } = {}) {
+  const raw = getOptionalEnv(name, fallback);
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

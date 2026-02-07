@@ -136,9 +136,18 @@ TODO
 │   ├── unregister.js       # /unregister
 │   ├── list.js             # /list
 │   └── rank.js             # /rank
+│   ├── rank.js             # /rank
+│   ├── leaderboard.js      # /leaderboard
+│   ├── recap.js            # /recap
+│   ├── recapconfig.js      # /recapconfig
+│   └── setchannel.js       # /setchannel
+
 ├── riot.js                 # Riot Games API wrapper
 ├── storage.js              # JSON persistence layer
 ├── utils/
+│   ├── recap.js            # Recap helpers
+│   ├── rateLimiter.js      # Riot API rate limiting helpers
+│   ├── tft.js              # TFT-specific helpers
 │   └── utils.js            # Utilities for other files
 ├── user_data/
 │   └── registrations.json  # Auto-created DB
@@ -152,8 +161,11 @@ The bot requires the following environment variables:
 - `DISCORD_BOT_TOKEN`  
   Discord bot token
 
-- `RIOT_API_KEY`  
-  Riot Games API key (TFT)
+- `RIOT_TFT_API_KEY`  
+  Riot Games API key (TFT endpoints)
+
+- `RIOT_LOL_API_KEY`  
+  Riot Games API key (LoL endpoints)
 
 - `DISCORD_CHANNEL_ID`  
   Channel ID where automated match result embeds will be posted
@@ -164,3 +176,10 @@ Optional:
 
 - `MATCH_POLL_PER_ACCOUNT_DELAY_MS` (default: 250)  
   Delay between polling each account to avoid rate limits
+
+- `RECAP_AUTOPOST_HOUR` (default: 9)  
+  Local server hour (0-23) for daily recap autopost
+
+- `RECAP_AUTOPOST_MINUTE` (default: 0)  
+  Local server minute (0-59) for daily recap autopost
+

@@ -15,8 +15,6 @@ import {
     upsertGuildAccount,
 } from '../storage.js';
 
-import { pickRankSnapshot } from '../utils/tft.js';
-
 export default {
     data: new SlashCommandBuilder()
         .setName("register")

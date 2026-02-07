@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, Collection, EmbedBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, Collection } from 'discord.js';
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,15 +19,9 @@ import {
     normalizePlacement,
     standardizeRankLp
  } from './utils/tft.js';
-
-
-function mustGetEnv(name) {
-    const value = process.env[name];
-    if (!value) {
-        throw new Error(`Environment variable ${name} is required`);
-    }
-    return value;
-}
+import { createRiotRateLimiter } from './utils/rateLimiter.js';
+import { buildRecapEmbed, computeRecapRows, hoursForMode } from './utils/recap.js';
+import { mustGetEnv, getOptionalEnv, parseIntEnv, sleep } from './utils/utils.js';
 
 // Login to Discord with the bot's token
 const token = mustGetEnv('DISCORD_BOT_TOKEN');
@@ -65,15 +59,6 @@ for (const file of commandFiles) {
     client.commands.set(command.data.name, command);
 }
 
-function getOptionalEnv(name, fallback) {
-  const v = process.env[name];
-  return (v === undefined || v === '') ? fallback : v;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function ymdLocal(d = new Date()) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -84,6 +69,7 @@ function ymdLocal(d = new Date()) {
 async function startMatchPoller(client) {
     const intervalSeconds = Number(getOptionalEnv('MATCH_POLL_INTERVAL_SECONDS', '60'));
     const perAccountDelayMs = Number(getOptionalEnv('MATCH_POLL_PER_ACCOUNT_DELAY_MS', '250'));
+    const riotLimiter = createRiotRateLimiter({ perSecond: 20, perTwoMinutes: 100 });
 
     const tick = async () => {
         const fallbackChannelId = process.env.DISCORD_CHANNEL_ID || null;
@@ -137,6 +123,7 @@ async function startMatchPoller(client) {
                     }
 
                     if (latest !== account.lastMatchId) {
+                        await riotLimiter.acquire();
                         const match = await getTFTMatch({ regional: account.regional, matchId: latest });
                         const participants = match?.info?.participants ?? [];
                         const me = participants.find((p => p.puuid === account.puuid));
@@ -146,6 +133,7 @@ async function startMatchPoller(client) {
                         let after = before;
 
                         try {
+                            await riotLimiter.acquire();
                             const entries = await getTFTRankByPuuid({ 
                                 platform: account.platform,
                                 puuid: account.puuid
@@ -266,8 +254,8 @@ async function startMatchPoller(client) {
 }
 
 async function startRecapAutoposter(client) {
-    const FIRE_HOUR = 9;
-    const FIRE_MINUTE = 0;
+    const FIRE_HOUR = parseIntEnv('RECAP_AUTOPOST_HOUR', '9', { min: 0, max: 23 });
+    const FIRE_MINUTE = parseIntEnv('RECAP_AUTOPOST_MINUTE', '0', { min: 0, max: 59 });
 
     const tick = async () => {
         const fallbackChannelId = process.env.DISCORD_CHANNEL_ID || null;
@@ -321,92 +309,12 @@ async function startRecapAutoposter(client) {
             );
 
             // Build recap rows from stored recapEvents (same logic as /recap)
-            const hours = mode === "WEEKLY" ? 24 * 7 : 24;
+            const hours = hoursForMode(mode);
             const cutoff = Date.now() - hours * 60 * 60 * 1000;
 
             const accounts = guild?.accounts ?? [];
-
-            const rows = accounts.map((account) => {
-                const events = Array.isArray(account.recapEvents)
-                ? account.recapEvents
-                : [];
-
-                const filtered = events.filter(
-                    (e) =>
-                        Number(e?.at ?? 0) >= cutoff && e.queueType === queue
-                );
-                
-                return {
-                    account,
-                    games: filtered.length,
-                    delta: filtered.reduce((s, e) => s + Number(e.delta ?? 0), 0),
-                };
-            });
-
-            // Simple embed builder (kept inline to avoid circular imports)
-            const sortGains = [...rows]
-                .filter((r) => r.games > 0 && r.delta >= 0)
-                .sort((a, b) => {
-                if (b.delta !== a.delta) return b.delta - a.delta;
-                if (b.games !== a.games) return b.games - a.games;
-                const an = `${a.account.gameName}#${a.account.tagLine}`.toLowerCase();
-                const bn = `${b.account.gameName}#${b.account.tagLine}`.toLowerCase();
-                return an.localeCompare(bn);
-            });
-
-            const sortLosses = rows
-                .filter((r) => r.delta < 0)
-                .sort((a, b) => a.delta - b.delta);
-
-            const medal = (i) =>
-                i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`;
-
-            const fmt = (d) =>
-                d > 0 ? `↑ +${d} LP` : d < 0 ? `↓ ${Math.abs(d)} LP` : "0 LP";
-
-            const gainsLines = sortGains.slice(0, 25).map((r, i) => {
-                const name = `${r.account.gameName}#${r.account.tagLine}`;
-                const games = r.games > 0 ? ` — ${r.games} games` : "";
-                return `${medal(i)} **${name}** ${fmt(r.delta)}${games}`;
-            });
-
-            const lossesLines =
-                sortLosses.length > 0
-                ? sortLosses.slice(0, 10).map((r, i) => {
-                    const name = `${r.account.gameName}#${r.account.tagLine}`;
-                    const games = r.games > 0 ? ` — ${r.games} games` : "";
-                    return `${medal(i)} **${name}** ${fmt(r.delta)}${games}`;
-                    })
-                : ["—"];
-
-            const totalGames = rows.reduce((s, r) => s + r.games, 0);
-            const queueLabel =
-                queue === "RANKED_TFT"
-                ? "Ranked"
-                : queue === "RANKED_TFT_DOUBLE_UP"
-                ? "Double Up"
-                : queue;
-            
-            const modeLabel = mode === "WEEKLY" ? "Weekly" : "Daily";
-            
-            const embed = new EmbedBuilder()
-                .setTitle(`${modeLabel} Recap — ${queueLabel}`)
-                .addFields(
-                {
-                    name: "Top gains",
-                    value: (gainsLines.join("\n") || "—").slice(0, 1024),
-                    inline: true,
-                },
-                {
-                    name: "Top losses",
-                    value: (lossesLines.join("\n") || "—").slice(0, 1024),
-                    inline: true,
-                }
-                )
-                .setFooter({
-                text: `${rows.length} players | ${totalGames} games • last ${hours}h`,
-                })
-                .setTimestamp(new Date());
+            const rows = computeRecapRows(accounts, cutoff, queue);
+            const embed = buildRecapEmbed({ rows, mode, queue, hours });
         
             await channel.send({ embeds: [embed] });
             

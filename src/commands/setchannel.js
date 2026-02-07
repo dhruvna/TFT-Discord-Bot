@@ -40,9 +40,8 @@ export default {
         }
 
         await interaction.deferReply({ ephemeral: true });
-
-        const rankedOnly = interaction.options.getBoolean("ranked_only") ?? true;
-        const effectiveRankedOnly = rankedOnly === null ? true : rankedOnly;
+        
+        const effectiveRankedOnly = interaction.options.getBoolean("ranked_only") ?? true;
 
         const db = await loadDb();
 
