@@ -53,7 +53,7 @@ export class CompositeRateLimiter {
   }
 }
 
-export function createRiotRateLimiter({ perSecond = 20, perTwoMinutes = 100 } = {}) {
+export function createRiotRateLimiter({ perSecond = 18, perTwoMinutes = 95 } = {}) {
   const perSecondBucket = new TokenBucket({
     capacity: perSecond,
     refillPerMs: perSecond / 1000,

@@ -240,27 +240,6 @@ async function startMatchPoller(client) {
                             }
                         }
                     
-                    // const announceQueues = guild?.announceQueues ?? ["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"];
-                    // const shouldAnnounce = !announceQueues || announceQueues.includes(queueType);
-                    // if (!shouldAnnounce) {
-                    //     console.log(
-                    //         `[match-poller] skipping announcement for guild=${guildId} account=${account.key} match=${latest} queue=${queueType} (not in announceQueues)`
-                    //     );
-                    //     await upsertGuildAccount(db, guildId, { 
-                    //         ...account,
-                    //         lastMatchId: latest,
-                    //         lastRankByQueue: after,
-                    //     });
-                    //     didChange = true;
-                    //     await sleep(perAccountDelayMs);
-                    //     continue;
-                    // }
-                    
-                    // const normPlacement = normalizePlacement({ placement, queueType });
-
-                    // const afterRank = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP")
-                    //     ? (after?.[queueType] ?? null)
-                    //     : null;
                     const shouldAnnounce = !announceQueues || announceQueues.includes(queueType);
                         if (!shouldAnnounce) {
                             console.log(
@@ -272,25 +251,6 @@ async function startMatchPoller(client) {
                     
                     const normPlacement = normalizePlacement({ placement, queueType }); 
 
-                    // const delta = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP")
-                    //     ? (deltas?.[queueType] ?? 0)
-                    //     : 0;
-
-                    // let recapEvents = Array.isArray(account.recapEvents) ? account.recapEvents : [];
-                    
-                    // if (isRankedQueue) {
-                    //     const gameMs = match.info.game_datetime ?? Date.now();
-
-                    //     const already = recapEvents.some((e) => e.matchId === latest)
-                    //     if (!already) {
-                    //         recapEvents.push({
-                    //             matchId: latest,
-                    //             at: gameMs,
-                    //             queueType,
-                    //             delta: Number(delta ?? 0),
-                    //             placement: Number(normPlacement ?? 0),
-                    //         });
-                    
                     const afterRank = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP") && isMostRecent
                             ? (after?.[queueType] ?? null)
                             : null;
@@ -317,23 +277,6 @@ async function startMatchPoller(client) {
                                     .slice(0, 250);
                             }
                         }
-                    // }
-
-                    // console.log(
-                    //     `[match-poller] NEW match guild=${guildId} ${account.key} match=${latest} queue=${queueType} place=${normPlacement} delta=${delta}`
-                    // );
-
-                    // if (channel) {
-                    //     const embed = await buildMatchResultEmbed({
-                    //         account,
-                    //         placement: normPlacement,
-                    //         matchId: latest,
-                    //         queueType, 
-                    //         delta,
-                    //         afterRank,
-                    //     });
-                    //     await channel.send({ embeds: [embed] });
-                    // } else {
                         console.log(
                             `[match-poller] NEW match guild=${guildId} ${account.key} match=${matchId} queue=${queueType} place=${normPlacement} delta=${delta}`
                         );

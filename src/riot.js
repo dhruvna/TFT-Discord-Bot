@@ -153,6 +153,11 @@ export async function getTftRegaliaThumbnailUrl({ queueType, tier }) {
   return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-regalia/${file}`;
 }
 
+export async function getTftChampionThumbnail({championId = "Aatrox"}) {
+    const version = await getLatestDDragonVersion();
+    return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-champion/TFT16_${championId})_splash_centered_0.TFT_Set16.png`;
+}
+
 // function to build leagueofgraphs url for a gamename#tagline
 export function getLeagueOfGraphsUrl({ region = "NA", gameName, tagLine }) {
     const shard = String(region || "NA").toLowerCase();
