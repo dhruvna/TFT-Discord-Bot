@@ -1,6 +1,11 @@
+// === Imports ===
+// Recap output is rendered into Discord embeds, with queue labels for clarity.
+
 import { EmbedBuilder } from "discord.js";
 import { queueLabel } from "../constants/queues.js";
 
+// === Mode helpers ===
+// These keep the mode -> hours/label mapping consistent everywhere.
 export function hoursForMode(mode) {
     return mode === "WEEKLY" ? 24 * 7 : 24;
 }
@@ -9,6 +14,8 @@ export function modeLabel(mode) {
     return mode === "WEEKLY" ? "Weekly" : "Daily";
 }
 
+// === Formatting helpers ===
+// Emojis provide fast visual ranking for the top entries.
 function medal(i) {
   if (i === 0) return "🥇";
   if (i === 1) return "🥈";
@@ -16,6 +23,7 @@ function medal(i) {
   return `${i + 1}.`;
 }
 
+// Normalize LP deltas into a human-readable string.
 function formatDelta(delta) {
   const d = Number(delta ?? 0);
   if (d > 0) return `↑ +${d} LP`;
@@ -23,10 +31,13 @@ function formatDelta(delta) {
   return "0 LP";
 }
 
+// Consistent account name formatting across the board.
 function accountName(a) {
   return `${a.gameName}#${a.tagLine}`;
 }
 
+// === Recap aggregation ===
+// Compute per-account stats inside the requested time window
 export function computeRecapRows(accounts, cutoffMs, wantedQueue) {
   return accounts.map((account) => {
     const events = Array.isArray(account.recapEvents) ? account.recapEvents : [];
@@ -43,7 +54,7 @@ export function computeRecapRows(accounts, cutoffMs, wantedQueue) {
   });
 }
 
-// sort by lp gains, then by games played, then by account name. only include positive gains
+// Sort by LP gains, then games played, then account name. Only include positive gains.
 function sortByGains(rows) {
   return rows
     .filter((r) => r.games > 0 && r.delta >= 0)
@@ -56,6 +67,7 @@ function sortByGains(rows) {
     });
 }
 
+// Sort by losses so the biggest negative deltas appear first.
 function sortByLosses(rows) {
   return rows
     .filter((r) => r.delta < 0)
@@ -68,6 +80,7 @@ function sortByLosses(rows) {
     });
 }
 
+// Build line entries with medals and optional game counts.
 function buildLines(rows, limit) {
   return rows.slice(0, limit).map((r, i) => {
     const games = r.games > 0 ? ` — ${r.games} games` : "";
@@ -75,6 +88,8 @@ function buildLines(rows, limit) {
   });
 }
 
+// === Embed construction ===
+// Translate recap rows into a Discord embed for posting.
 export function buildRecapEmbed({ rows, mode, queue, hours }) {
   const totalGames = rows.reduce((s, r) => s + r.games, 0);
 

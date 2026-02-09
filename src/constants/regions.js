@@ -1,8 +1,10 @@
+// === Riot routing overview ===
 // Riot uses two routing models:
 // - Platform routing targets shard-specific endpoints (e.g., na1, euw1) for League/TFT data.
 // - Regional routing targets broader clusters (e.g., americas, europe, asia, sea) for account/match APIs.
 
-// Discord dropdown choices for region selection
+// === Discord dropdown choices ===
+// Keep the display list in a single place so commands can reuse it consistently.
 export const REGION_CHOICES = [
     { name: "NA", value: "NA" },
     { name: "EUW", value: "EUW" },
@@ -22,7 +24,8 @@ export const REGION_CHOICES = [
     { name: "TW", value: "TW" },
 ];
 
-// Maps user-facing region -> Riot routing values
+// === Routing map ===
+// Maps user-facing region -> Riot routing values used by API requests.
 export const REGION_TO_ROUTES = {
     NA:  { platform: 'na1', regional: 'americas' },
     BR:  { platform: 'br1', regional: 'americas' },
@@ -45,4 +48,6 @@ export const REGION_TO_ROUTES = {
     VN:  { platform: 'vn2', regional: 'sea' },
 };
 
+// === Validation helper ===
+// Used to validate DEFAULT_REGION and user input.
 export const ALLOWED_REGIONS = new Set(Object.keys(REGION_TO_ROUTES));

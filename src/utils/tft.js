@@ -1,4 +1,5 @@
-// src/utils/tft.js
+// === TFT utilities ===
+// This module holds helpers for queue detection, placement formatting, and embeds.
 
 import { EmbedBuilder } from "discord.js";
 import { getTFTMatchUrl, getTftRegaliaThumbnailUrl } from "../riot.js";
@@ -8,12 +9,15 @@ import {
   queueLabel,
 } from "../constants/queues.js";
 
+// === Queue helpers ===
+// Extract the queue id from a match payload while handling API variations.
 export function getQueueIdFromMatch(match) {
     const info = match?.info;
     const q = info?.queueId ?? info?.queue_id ?? null;
     return typeof q === "number" ? q: (q ? Number(q) : null);
 }
 
+// Convert queue id into human-friendly metadata.
 export function detectQueueMetaFromMatch(match) {
     const queueId = getQueueIdFromMatch(match);
 
@@ -49,6 +53,7 @@ export function detectQueueMetaFromMatch(match) {
     };
 }
 
+// Normalize placement for queue-specific differences (like Double Up).
 export function normalizePlacement({ placement, queueType}) {
     if (typeof placement !== "number" || placement < 1 || placement > 8) return null;
 
@@ -59,6 +64,7 @@ export function normalizePlacement({ placement, queueType}) {
     return placement;
 }
 
+// Format LP delta for display.
 export function formatDelta(delta) {
     if (!Number.isFinite(delta)) return "-";
     if (delta > 0) return `+${delta}`;
@@ -66,6 +72,7 @@ export function formatDelta(delta) {
     return "0";
 }
 
+// Convert a placement number to ordinal text.
 export function placementToOrdinal(placement) {
     if (!placement) return "?";
     if (placement === 1) return "1st";
@@ -74,10 +81,13 @@ export function placementToOrdinal(placement) {
     return `${placement}th`;
 }
 
+// Wrap queue label helper for semantic clarity at call sites.
 export function labelForQueueType(queueType) {
     return queueLabel(queueType);
 }
 
+// === Embed construction ===
+// Build the Discord embed used for match announcements.
 export async function buildMatchResultEmbed({ 
     account, 
     placement,
@@ -102,9 +112,8 @@ export async function buildMatchResultEmbed({
         isRanked && afterRank?.tier
             ? `${afterRank.tier} ${afterRank.rank} — ${afterRank.lp} LP`
             : "—";
-            
-
-    
+     
+    // Start with a URL + timestamp so the embed is linkable and time-stamped
     const embed = new EmbedBuilder().setURL(matchUrl).setTimestamp(new Date());
     
     if (isRanked) {
@@ -122,6 +131,7 @@ export async function buildMatchResultEmbed({
     const riotId = `${account.gameName}#${account.tagLine}`;
     const ord = p ? placementToOrdinal(p) : 'N/A';
 
+    // Use different colors/titles for wins and losses for quick scanning.
     if (isWin) {
         embed.setColor(0x2dcf71).setTitle(`${label} Victory for ${riotId}!`);
         if (p === 1) embed.setDescription(`**dhruvna coaching DIFF**`);

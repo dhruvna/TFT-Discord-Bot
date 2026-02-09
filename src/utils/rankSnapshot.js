@@ -1,5 +1,9 @@
+// === Imports ===
+// Ranked queue constants ensure we only snapshot relevant queues.
 import { RANKED_QUEUES } from "../constants/queues.js";
 
+// === Rank normalization constants ===
+// The goal is to turn a tier/division/LP tuple into a single comparable number.
 const TIER_BASE = {
   IRON: 0,
   BRONZE: 400,
@@ -10,9 +14,10 @@ const TIER_BASE = {
   DIAMOND: 2400,
 };
 
-// Keep monotonic above Diamond I
+// Keep monotonic above Diamond I by anchoring Master+ at a higher base.
 const MASTER_PLUS_BASE = 2800;
 
+// Division offsets represent 100 LP bands inside each tier.
 const DIV_OFFSET = {
   IV: 0,
   III: 100,
@@ -20,6 +25,8 @@ const DIV_OFFSET = {
   I: 300,
 };
 
+// === Rank normalization ===
+// Convert Riot rank data to a single LP-like number for delta computations.
 export function standardizeRankLp(rank) {
     if (!rank) return null;
 
@@ -41,6 +48,8 @@ export function standardizeRankLp(rank) {
     return base + offset + lp;  
 }
 
+// === Snapshot conversion ===
+// Convert raw Riot entries into our internal snapshot structure.
 export function toRankSnapshot(entries, { now = Date.now(), rankedQueues = RANKED_QUEUES } = {}) {
     const rows = Array.isArray(entries) ? entries : [];
 
@@ -61,6 +70,8 @@ export function toRankSnapshot(entries, { now = Date.now(), rankedQueues = RANKE
         );
     }
 
+// === Delta computation ===
+// Compute rank movement by queue using normalized LP values.
 export function computeRankSnapshotDeltas({ before = {}, after = {} }) {
     const deltas = {};
     
@@ -77,7 +88,8 @@ export function computeRankSnapshotDeltas({ before = {}, after = {} }) {
     return deltas;
 }
 
-
+// === Lookup helper ===
+// Convenience wrapper to fetch a stored snapshot from an account.
 export function getRankSnapshotForQueue(account, queueType) {
   return account?.lastRankByQueue?.[queueType] ?? null;
 }

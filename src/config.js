@@ -1,5 +1,9 @@
+// === Environment bootstrap ===
+// Load .env values into process.env early so all reads below are consistent.
 import 'dotenv/config';
 
+// === Configuration schema ===
+// Documenting the config shape keeps the rest of the app self-describing.
 /**
  * @typedef {Object} AppConfig
  * @property {string} discordBotToken
@@ -16,6 +20,8 @@ import 'dotenv/config';
  * @property {string|null} discordChannelId
  */
 
+// === Defaults and validation sets ===
+// These constants centralize valid region values and fallback behavior.
 const DEFAULT_REGION = 'NA';
 const VALID_REGIONS = new Set([
     'NA',
@@ -36,6 +42,8 @@ const VALID_REGIONS = new Set([
     'TW',
 ]);
 
+// === Environment helpers ===
+// Small helpers give us consistent error messages and type conversions.
 function readEnv(name) {
     return process.env[name];
 }
@@ -54,6 +62,7 @@ function optionalString(name) {
     return value;
 }
 
+// Parse integers while enforcing optional bounds.
 function readInt(name, { defaultValue, min = -Infinity, max = Infinity }) {
     const raw = readEnv(name);
     if (raw === undefined || raw === '') {
@@ -71,6 +80,8 @@ function readInt(name, { defaultValue, min = -Infinity, max = Infinity }) {
     return parsed;
 }
 
+
+// Parse DEFAULT_REGION with normalization + explicit validation.
 function readRegion() {
     const raw = readEnv('DEFAULT_REGION') ?? DEFAULT_REGION;
     const normalized = String(raw).toUpperCase();
@@ -82,6 +93,8 @@ function readRegion() {
     return normalized;
 }
 
+// === Final config ===
+// Freeze the config so accidental mutations don't create confusing runtime bugs.
 /** @type {AppConfig} */
 export const config = Object.freeze({
     discordBotToken: requireString('DISCORD_BOT_TOKEN'),
@@ -118,4 +131,5 @@ export const config = Object.freeze({
     discordChannelId: optionalString('DISCORD_CHANNEL_ID'),
 });
 
+// Export a default for convenience so imports stay concise.
 export default config;

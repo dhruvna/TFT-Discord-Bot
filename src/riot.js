@@ -1,7 +1,14 @@
+// === Imports: configuration and routing metadata ===
+// We keep Riot API keys and region routing in dedicated modules so this file
+// focuses on network requests and URL building.
+
 import config from './config.js';
 import { ALLOWED_REGIONS, REGION_TO_ROUTES } from './constants/regions.js';
+import { createRiotRateLimiter } from './utils/rateLimiter.js';
 
-// Convert region choice to routing values, use defaults if missing
+// === Region resolution ===
+// Convert a user-provided region into the routing values expected by Riot.
+// We always fall back to configured defaults to avoid hard failures on missing input.
 export function resolveRegion(regionMaybe) {
     const fallback = config.defaultRegion;
     const region = (regionMaybe || fallback).toUpperCase();
@@ -10,11 +17,22 @@ export function resolveRegion(regionMaybe) {
     return { region, ...routes };
 }
 
+// === API keys ===
+// We keep TFT and LoL keys separate because Riot issues different keys per product.
 const RIOT_TFT_API_KEY = config.riotTftApiKey;
 const RIOT_LOL_API_KEY = config.riotLolApiKey;
 
-async function riotFetchJson(url, gameType = "TFT") {
+const sharedRiotLimiter = createRiotRateLimiter();
+
+// === Network helper ===
+// Centralizes Riot API requests so we consistently apply headers and error handling.
+async function riotFetchJson(url, gameType = "TFT", limiter = sharedRiotLimiter) {
     const apiKey = gameType === "TFT" ? RIOT_TFT_API_KEY : RIOT_LOL_API_KEY;
+    
+    if (limiter) {
+        await limiter.acquire();
+    }
+
     const res = await fetch(url, { headers: { "X-Riot-Token": apiKey } });
     if (!res.ok) {
         const body = await res.text();
@@ -23,47 +41,58 @@ async function riotFetchJson(url, gameType = "TFT") {
     return res.json();
 }
 
+// === Defaults derived from config ===
+// Precompute default routing values so most calls don't need to specify them.
 const { regional: DEFAULT_REGIONAL } = resolveRegion();
 
-export async function getAccountByRiotId( {regional = DEFAULT_REGIONAL, gameName, tagLine} ) {
+
+// === Riot API wrappers ===
+// These helpers expose purpose-specific functions that build URLs and delegate
+// to the shared fetch helper above.
+export async function getAccountByRiotId( {regional = DEFAULT_REGIONAL, gameName, tagLine, limiter} ) {
     const url = `https://${regional}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(
     gameName
     )}/${encodeURIComponent(tagLine)}`;
-  return riotFetchJson(url, "TFT");
+  return riotFetchJson(url, "TFT", limiter);
 }
 
-export async function getTFTRankByPuuid({ platform, puuid }) {
+export async function getTFTRankByPuuid({ platform, puuid, limiter }) {
   const url = `https://${platform}.api.riotgames.com/tft/league/v1/by-puuid/${encodeURIComponent(puuid)}`;
-  return riotFetchJson(url, "TFT");
+  return riotFetchJson(url, "TFT", limiter);
 }
 
-export async function getTFTMatchIdsByPuuid({ regional, puuid, count = 1, start = 0 }) {
+export async function getTFTMatchIdsByPuuid({ regional, puuid, count = 1, start = 0, limiter }) {
+    // Protect the API from invalid pagination input by constraining values.
     const safeCount = Math.max(1, Math.min(Number(count) || 1, 20));
     const safeStart = Math.max(0, Number(start) || 0);
     const url = `https://${regional}.api.riotgames.com/tft/match/v1/matches/by-puuid/${encodeURIComponent(
         puuid
     )}/ids?count=${safeCount}&start=${safeStart}`;
 
-    return riotFetchJson(url, "TFT");
+    return riotFetchJson(url, "TFT", limiter);
 }
 
-export async function getTFTMatch({ regional, matchId}) {
+export async function getTFTMatch({ regional, matchId, limiter }) {
     const url = `https://${regional}.api.riotgames.com/tft/match/v1/matches/${encodeURIComponent(
         matchId)}`;
-        return riotFetchJson(url, "TFT");
+        return riotFetchJson(url, "TFT", limiter);
 }
 
-// --- Data Dragon (TFT regalia) cache ---
+// === Data Dragon (TFT regalia) cache ===
+// Data Dragon responses change infrequently, so we cache them in-memory to
+// reduce network requests and improve response time.
 let ddragonVersionCache = null;
 let tftRegaliaCache = null;
 
-// "DIAMOND" -> "Diamond"
+// Normalize a tier string for Data Dragon's title-cased keys.
+// Example: "DIAMOND" -> "Diamond"
 function toTitleCaseTier(tier) {
     if (!tier) return null;
     const lower = tier.toLowerCase();
     return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
+// Fetch and cache the latest Data Dragon version string.
 async function getLatestDDragonVersion() {
     if (ddragonVersionCache) return ddragonVersionCache;
 
@@ -78,6 +107,7 @@ async function getLatestDDragonVersion() {
     return ddragonVersionCache;
 }
 
+// Fetch and cache TFT regalia metadata so we can resolve tier images.
 async function loadTFTRegalia() {
     if (tftRegaliaCache) return tftRegaliaCache;
 
@@ -94,6 +124,8 @@ async function loadTFTRegalia() {
     return tftRegaliaCache;
 }
 
+// Build a regalia thumbnail URL for a given queue type + tier.
+// Returns null when the tier does not map to a known asset.
 export async function getTftRegaliaThumbnailUrl({ queueType, tier }) {
   const regalia = await loadTFTRegalia();
   const version = await getLatestDDragonVersion();
@@ -109,12 +141,17 @@ export async function getTftRegaliaThumbnailUrl({ queueType, tier }) {
   return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-regalia/${file}`;
 }
 
+// Build a champion thumbnail URL from a champion id.
+// Defaults to Aatrox so callers always get a valid image.
 export async function getTftChampionThumbnail({championId = "Aatrox"}) {
     const version = await getLatestDDragonVersion();
     return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-champion/TFT16_${championId})_splash_centered_0.TFT_Set16.png`;
 }
 
-// function to build leagueofgraphs url for a gamename#tagline
+// === External link helpers ===
+// These helpers provide stable URLs to third-party sites for user convenience.
+
+// Build a League of Graphs profile URL for a gameName#tagLine pair.
 export function getLeagueOfGraphsUrl({ region = "NA", gameName, tagLine }) {
     const shard = String(region || "NA").toLowerCase();
     const encodedName = encodeURIComponent(gameName);
@@ -122,12 +159,14 @@ export function getLeagueOfGraphsUrl({ region = "NA", gameName, tagLine }) {
     return `https://www.leagueofgraphs.com/tft/summoner/${shard}/${encodedName}-${encodedTag}`;
 }
 
+// Convert a match ID platform prefix into the League of Graphs shard name.
 function platformToLoGShard(platformPrefix) {
   return platformPrefix
     .toLowerCase()
     .replace(/\d+$/, ""); // remove trailing digits
 }
 
+// Build a League of Graphs match URL from a Riot match id.
 export function getTFTMatchUrl({ matchId }) {
     // split match id into everything before and after the _
     if (!matchId || !matchId.includes("_")) return null;

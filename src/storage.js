@@ -1,11 +1,17 @@
+// === Imports ===
+// We rely on the filesystem to persist registrations and per-guild settings.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+// === File locations ===
+// Use a default path in the repo while allowing overrides via env vars.
 const DEFAULT_DATA_PATH = path.join(process.cwd(), 'user_data', 'registrations.json');
 const DATA_PATH = process.env.DATA_PATH
   ? path.resolve(process.env.DATA_PATH)
   : path.join(process.env.DATA_DIR ?? path.dirname(DEFAULT_DATA_PATH), 'registrations.json');
 
+// === File initialization ===
+// Ensure the data file exists so callers can assume read/write will work.
 async function ensureDataFile() {
   const dir = path.dirname(DATA_PATH);
 
@@ -20,6 +26,8 @@ async function ensureDataFile() {
   }
 }
 
+// === Database IO ===
+// Read the JSON file into an object, falling back to an empty object on error.
 export async function loadDb() {
     await ensureDataFile();
     try {
@@ -30,6 +38,7 @@ export async function loadDb() {
     }
 }
 
+// Write the DB atomically (write temp -> rename) to avoid corruption.
 export async function saveDb(db) {
     await ensureDataFile();
     const tmp = `${DATA_PATH}.tmp`;
@@ -37,6 +46,8 @@ export async function saveDb(db) {
     await fs.rename(tmp, DATA_PATH);
 }
 
+// === Guild normalization ===
+// Ensure a guild object exists and has the minimum required shape.
 function ensureGuild(db, guildId) {
     if (!db[guildId]) db[guildId] = {};
     if (!Array.isArray(db[guildId].accounts)) db[guildId].accounts = [];
@@ -67,10 +78,12 @@ function ensureGuild(db, guildId) {
     return db[guildId];
 }
 
+// Build a stable key used to deduplicate accounts.
 export function makeAccountKey({ gameName, tagLine, platform }) {
     return `${gameName}#${tagLine}@${platform}`.toLowerCase();
 }
 
+// === Account Creation, Read, Update, Deletion ===
 export async function listGuildAccounts(guildId) {
   const db = await loadDb();
   return db[guildId]?.accounts ?? [];
@@ -93,6 +106,7 @@ export async function upsertGuildAccount(db, guildId, account) {
     return { account, existed };
 }
 
+// Only persist when the caller indicates a change to reduce disk writes.
 export async function saveDbIfChanged(db, didChange) {
   if (didChange) await saveDb(db);
 }
@@ -110,6 +124,7 @@ export async function removeGuildAccountByKey(guildId, key) {
     return removed;
 }
 
+// === Guild-level settings ===
 export function getGuildChannelId(db, guildId) {
     return db?.[guildId]?.channelId ?? null;
 }

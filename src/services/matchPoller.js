@@ -1,3 +1,6 @@
+// === Imports ===
+// This service orchestrates polling Riot for match updates and sending Discord updates.
+
 import { loadDb, saveDbIfChanged, upsertGuildAccount} from '../storage.js';
 import { getTFTMatch, getTFTMatchIdsByPuuid, getTFTRankByPuuid } from '../riot.js';
 
@@ -22,8 +25,12 @@ import { createRiotRateLimiter } from '../utils/rateLimiter.js';
 import { sleep } from '../utils/utils.js';
 import config from '../config.js';
 
+// === Polling configuration ===
+// Limit how far back we look for unseen matches to bound API usage.
 const MATCH_BACKFILL_LIMIT = 10;
 
+// === Rank refresh logic ===
+// Determine whether cached rank data is stale enough to refresh.
 function shouldRefreshRank(account, now, maxAgeMs) {
     if (!account?.lastRankByQueue) return true;
     const entries = Object.values(account.lastRankByQueue);
@@ -34,24 +41,29 @@ function shouldRefreshRank(account, now, maxAgeMs) {
     });
 }
 
+// === Riot fetch helpers ===
+// Wrap Riot calls so we always respect the rate limiter.
 async function fetchMatchIds({ riotLimiter, account, count, start = 0 }) {
-    await riotLimiter.acquire();
     return getTFTMatchIdsByPuuid({
         regional: account.regional,
         puuid: account.puuid,
         count,
         start,
+        limiter: riotLimiter,
     });
 }
 
 async function fetchMatch({ riotLimiter, account, matchId }) {
-    await riotLimiter.acquire();
     return getTFTMatch({ 
         regional: account.regional, 
-        matchId 
+        matchId,
+        limiter: riotLimiter,
     });
 }
 
+
+// === Match discovery ===
+// Build a list of match IDs that are newer than the last seen match.
 function collectUnseenMatchIds({ ids, lastMatchId, unseenMatchIds, limit }) {
     let foundLast = false;
 
@@ -70,6 +82,7 @@ function collectUnseenMatchIds({ ids, lastMatchId, unseenMatchIds, limit }) {
 }
 
 async function detectUnseenMatchIds({ account, matchBackfillLimit, fetchMatchIdsByAccount}) {
+    // If we have never seen a match for this account, fetch just one ID to seed it.
     if (!account.lastMatchId) {
         const ids = await fetchMatchIdsByAccount({ count: 1, start: 0 });
         return Array.isArray(ids) ? ids.slice(0, 1) : [];
@@ -104,15 +117,19 @@ async function detectUnseenMatchIds({ account, matchBackfillLimit, fetchMatchIds
     return unseenMatchIds;
 }
 
+// === Rank snapshot refresh ===
+// Convert Riot's raw league entries into our normalized snapshot format.
 async function refreshRankSnapshot({ riotLimiter, account }) {
-    await riotLimiter.acquire();
     const entries = await getTFTRankByPuuid({
         platform: account.platform,
         puuid: account.puuid,
+        limiter: riotLimiter,
     });
     return toRankSnapshot(entries);
 }
 
+// === Recap event buffer ===
+// Track a rolling window of recent ranked matches for recap summaries.
 function buildRecapEvents({ recapEvents, matchId, queueType, delta, placement, gameMs }) {
     const already = recapEvents.some((event) => event.matchId === matchId);
     if (already) return recapEvents;
@@ -131,6 +148,8 @@ function buildRecapEvents({ recapEvents, matchId, queueType, delta, placement, g
     return nextEvents.sort((a, b) => b.at - a.at).slice(0, 250);
 }
 
+// === Discord announcement ===
+// Build an embed and post it in the configured channel (if any).
 async function announceMatchToDiscord({
     channel,
     account,
@@ -160,18 +179,22 @@ async function announceMatchToDiscord({
     await channel.send({ embeds: [embed] });
 }
 
+// Should this match be announced based on guild configuration?
 function shouldAnnounceMatch({ announceQueues, queueType }) {
     if (!announceQueues) return true;
     return announceQueues.includes(queueType);
 }
 
+// === Service entry point ===
+// Polls periodically for new matches and sends announcements.
 export async function startMatchPoller(client) {
     const intervalSeconds = config.matchPollIntervalSeconds;
-    const perAccountDelayMs = config.matchPollPerAccountDelayMs;
+    const basePerAccountDelayMs = config.matchPollPerAccountDelayMs;
     const riotLimiter = createRiotRateLimiter({ perSecond: 20, perTwoMinutes: 100 });
     const rankRefreshMinutes = config.rankRefreshIntervalMinutes;
     const rankRefreshMs = rankRefreshMinutes * 60 * 1000;
 
+    // One polling iteration. Split out to make the setInterval handler simple.
     const tick = async () => {
         const fallbackChannelId = config.discordChannelId;
         const channelCache = new Map(); // channelId -> channel (cache per tick)
@@ -180,9 +203,18 @@ export async function startMatchPoller(client) {
         let didChange = false;
         const guildIds = Object.keys(db);
         if (guildIds.length === 0) return;
+    
+        const totalAccounts = guildIds.reduce((sum, guildId) => {
+            const accounts = db[guildId]?.accounts ?? [];
+            return sum + accounts.length;
+        }, 0);
 
+        const intervalMs = intervalSeconds * 1000;
+        const spreadDelayMs = totalAccounts > 0 ? Math.ceil(intervalMs / totalAccounts) : 0;
+        const perAccountDelayMs = Math.max(basePerAccountDelayMs, spreadDelayMs);
+        
         console.log(
-            `[match-poller] tick guilds=${guildIds.length} interval=${intervalSeconds}s perAccountDelay=${perAccountDelayMs}ms`
+            `[match-poller] tick guilds=${guildIds.length} interval=${intervalSeconds}s totalAccounts=${totalAccounts} perAccountDelay=${perAccountDelayMs}ms`
         );
 
         for (const guildId of guildIds) {
@@ -195,6 +227,7 @@ export async function startMatchPoller(client) {
                 if (channelCache.has(channelIdForGuild)) {
                     channel = channelCache.get(channelIdForGuild);
                 } else {
+                    // Cache the channel per tick to avoid repeated fetch calls.
                     try {
                         channel = await client.channels.fetch(channelIdForGuild);
                     } catch (err) {
@@ -230,6 +263,7 @@ export async function startMatchPoller(client) {
                         }
                     }
 
+                    // Fetch unseen match IDs, respecting the backfill limit.
                     const unseenMatchIds = await detectUnseenMatchIds({
                         account,
                         matchBackfillLimit: MATCH_BACKFILL_LIMIT,
@@ -242,6 +276,7 @@ export async function startMatchPoller(client) {
                         continue;
                     }
 
+                    // Process matches from oldest to newest so deltas line up.
                     const orderedMatchIds = [...unseenMatchIds].reverse();
                     const before = account.lastRankByQueue ?? {};
                     let after = before;
@@ -260,6 +295,7 @@ export async function startMatchPoller(client) {
                         const queueType = meta.queueType || QUEUE_TYPES.RANKED_TFT;
                         const isRanked = isRankedQueue(queueType);
 
+                        // Only refresh rank once, for the latest ranked match.
                         if (isMostRecent && isRanked) {
                             try {
                                 after = await refreshRankSnapshot({ riotLimiter, account });
@@ -282,7 +318,8 @@ export async function startMatchPoller(client) {
                         
                         const afterRank = isRanked && isMostRecent ? (after?.[queueType] ?? null) : null;
                         const delta = isRanked && isMostRecent ? (deltas?.[queueType] ?? 0) : 0;
-                    
+                        
+                        // Capture recap data only for ranked queues.
                         if (isRanked) {
                             const gameMs = match.info.game_datetime ?? Date.now();
                             recapEvents = buildRecapEvents({
@@ -316,7 +353,7 @@ export async function startMatchPoller(client) {
 
                     await upsertGuildAccount(db, guildId, {
                         ...account,
-                        // lastMatchId: latest,
+                        // Persist lastMatchId so we only announce new games.
                         lastMatchId: lastProcessedMatchId,
                         lastRankByQueue: after,
                         recapEvents,
@@ -334,6 +371,7 @@ export async function startMatchPoller(client) {
         await saveDbIfChanged(db, didChange);
     };
 
+    // Run immediately, then schedule future ticks.
     await tick();
     setInterval(() => {
         tick().catch((error) => console.error('Match poll tick failed: ', error));

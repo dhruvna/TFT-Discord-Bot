@@ -1,8 +1,12 @@
+// === Imports ===
+// The recap autoposter builds recap embeds and sends them on a schedule.
 import { loadDb, saveDbIfChanged } from '../storage.js';
 import { QUEUE_TYPES } from '../constants/queues.js';
 import { buildRecapEmbed, computeRecapRows, hoursForMode } from '../utils/recap.js';
 import config from "../config.js";
 
+// === Date helpers ===
+// Use local dates for daily scheduling (matching users' expectations).
 export function getLocalYmd(d = new Date()) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -10,10 +14,13 @@ export function getLocalYmd(d = new Date()) {
     return `${y}-${m}-${day}`;
 }
 
+// Calculate cutoff timestamp for recap aggregation.
 export function getRecapCutoffTimestamp({ now, hours}) {
     return now.getTime() - hours * 60 * 60 * 1000;
 }
 
+// === Scheduling logic ===
+// Decide whether we should fire at the current time, accounting for last send.
 export function shouldFireRecapAutopost({ 
     now,
     fireHour,
@@ -33,10 +40,14 @@ export function shouldFireRecapAutopost({
     };
 }
 
+
+// === Service entry point ===
+// Polls once per minute to see if a recap should be posted.
 export async function startRecapAutoposter(client, { fireHour, fireMinute} = {}) {
     const FIRE_HOUR = fireHour ?? config.recapAutopostHour;
     const FIRE_MINUTE = fireMinute ?? config.recapAutopostMinute;
 
+    // One polling iteration. Splitting this out keeps the interval handler small.
     const tick = async () => {
         const fallbackChannelId = process.env.DISCORD_CHANNEL_ID || null;
 
@@ -110,13 +121,15 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute} = {})
         
             await channel.send({ embeds: [embed] });
             
+            // Persist the send date to prevent duplicate posts on the same day.
             guild.recap.lastSentYmd = today;
             didChange = true;
             console.log(`[recap-autopost] sent guild=${guildId} today=${today}`);
         }
         await saveDbIfChanged(db, didChange);
     };
-    // run tick every minute
+
+    // Run immediately and then every minute to catch the scheduled time.
     await tick();
     setInterval(() => tick().catch((e) => console.error("Recap autopost tick failed:", e)), 60 * 1000);
 }

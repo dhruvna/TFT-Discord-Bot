@@ -1,3 +1,6 @@
+// === Token bucket ===
+// A simple token bucket implementation used to enforce API rate limits.
+
 export class TokenBucket {
   constructor({ capacity, refillPerMs }) {
     this.capacity = capacity;
@@ -6,6 +9,7 @@ export class TokenBucket {
     this.lastRefill = Date.now();
   }
 
+  // Refill tokens based on elapsed time since the last refill.
   refill(now = Date.now()) {
     const elapsed = Math.max(0, now - this.lastRefill);
     if (elapsed <= 0) return;
@@ -17,12 +21,14 @@ export class TokenBucket {
     }
   }
 
+  // Compute how long until at least one token is available.
   get waitMsForToken() {
     if (this.tokens >= 1) return 0;
     const deficit = 1 - this.tokens;
     return Math.ceil(deficit / this.refillPerMs);
   }
 
+  // Attempt to consume tokens immediately; return false if insufficient.
   tryConsume(count = 1, now = Date.now()) {
     this.refill(now);
     if (this.tokens >= count) {
@@ -33,11 +39,14 @@ export class TokenBucket {
   }
 }
 
+// === Composite rate limiter ===
+// Combines multiple buckets so all constraints must be satisfied.
 export class CompositeRateLimiter {
   constructor(buckets = []) {
     this.buckets = buckets;
   }
 
+  // Wait until all buckets can consume the requested count.
   async acquire(count = 1) {
     while (true) {
       const now = Date.now();
@@ -53,6 +62,8 @@ export class CompositeRateLimiter {
   }
 }
 
+// === Riot-specific defaults ===
+// Riot has both per-second and per-2-minute limits, so we enforce both.
 export function createRiotRateLimiter({ perSecond = 18, perTwoMinutes = 95 } = {}) {
   const perSecondBucket = new TokenBucket({
     capacity: perSecond,
