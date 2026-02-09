@@ -7,6 +7,7 @@ import {
   RANKED_QUEUE_CHOICES,
   queueLabel,
 } from "../constants/queues.js";
+import { getRankSnapshotForQueue } from "../utils/rankSnapshot.js";
 
 // Tier ordering (low -> high)
 const TIER_ORDER = [
@@ -73,17 +74,6 @@ function computeWinrate(wins = 0, losses = 0) {
     return `${((wins / total) * 100).toFixed(1)}%`;
 }
 
-/**
- * Extracts the cached rank snapshot for the queue from a stored account.
- * This supports a couple common shapes:
- *  - account.rank[queueType] (recommended)
- *  - account.ranks[queueType]
- *  - account.afterRank (single queue snapshot)
- */
-function getCachedRank(account, queueType) {
-  return account?.lastRankByQueue?.[queueType] ?? null;
-}
-
 export default {
   data: new SlashCommandBuilder()
     .setName("leaderboard")
@@ -124,7 +114,7 @@ export default {
     
     const ranked = accounts
       .map((account) => {
-        const rank = getCachedRank(account, queueType);
+        const rank = getRankSnapshotForQueue(account, queueType);
         return {
             account,
             rank,

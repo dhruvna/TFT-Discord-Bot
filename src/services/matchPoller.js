@@ -2,12 +2,15 @@ import { loadDb, saveDbIfChanged, upsertGuildAccount} from '../storage.js';
 import { getTFTMatch, getTFTMatchIdsByPuuid, getTFTRankByPuuid } from '../riot.js';
 
 import {
-    pickRankSnapshot,
     buildMatchResultEmbed,
     detectQueueMetaFromMatch,
     normalizePlacement,
-    standardizeRankLp
  } from '../utils/tft.js';
+
+import {
+    computeRankSnapshotDeltas,
+    toRankSnapshot,
+} from '../utils/rankSnapshot.js';
 
 import {
     DEFAULT_ANNOUNCE_QUEUES,
@@ -107,22 +110,7 @@ async function refreshRankSnapshot({ riotLimiter, account }) {
         platform: account.platform,
         puuid: account.puuid,
     });
-    return pickRankSnapshot(entries);
-}
-
-function computeRankDeltas({ before, after }) {
-    const deltas = {};
-    for (const [queueType, afterRank] of Object.entries(after)) {
-        const beforeRank = before?.[queueType];
-
-        const beforeStd = standardizeRankLp(beforeRank);
-        const afterStd = standardizeRankLp(afterRank);
-
-        if (Number.isFinite(beforeStd) && Number.isFinite(afterStd)) {
-            deltas[queueType] = afterStd - beforeStd;
-        }
-    }
-    return deltas;
+    return toRankSnapshot(entries);
 }
 
 function buildRecapEvents({ recapEvents, matchId, queueType, delta, placement, gameMs }) {
@@ -280,7 +268,7 @@ export async function startMatchPoller(client) {
                             }
                         }
 
-                        const deltas = computeRankDeltas({ before, after });
+                        const deltas = computeRankSnapshotDeltas({ before, after });
                         
                         if (!shouldAnnounceMatch({ announceQueues, queueType })) {
                             console.log(

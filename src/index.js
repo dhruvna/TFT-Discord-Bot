@@ -8,6 +8,8 @@ import { loadDb } from './storage.js';
 import { startRecapAutoposter } from './services/recapAutoPoster.js';
 import { startMatchPoller } from './services/matchPoller.js';
 import config from './config.js';
+import { QUEUE_TYPES } from './constants/queues.js';
+import { getRankSnapshotForQueue } from './utils/rankSnapshot.js';
 
 // Login to Discord with the bot's token
 const token = config.discordBotToken;
@@ -52,11 +54,14 @@ client.once('clientReady', async () => {
     try {
         const db = await loadDb();
         for (const [gid, g] of Object.entries(db)) {
+            const accounts = g?.accounts ?? [];
+            const rankedSnapshots = accounts.filter((account) => 
+                getRankSnapshotForQueue(account, QUEUE_TYPES.RANKED_TFT)?.tier).length;
             console.log(
-            `[startup] guild=${gid} channelId=${g?.channelId ?? "null"} recap=${JSON.stringify(
-            g?.recap ?? null
-            )}`
-        );
+                `[startup] guild=${gid} channelId=${g?.channelId ?? "null"} accounts=${accounts.length} rankedSnapshots=${rankedSnapshots} recap=${JSON.stringify(
+                        g?.recap ?? null
+                    )}`
+                );
         }
     } catch (e) {
         console.error("[startup] failed reading db:", e);

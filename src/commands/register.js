@@ -16,6 +16,7 @@ import {
     upsertGuildAccount,
 } from '../storage.js';
 import { RANKED_QUEUES } from "../constants/queues.js";
+import { toRankSnapshot } from "../utils/rankSnapshot.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -63,23 +64,9 @@ export default {
         let lastRankByQueue = {};
         try {
             const entries = await getTFTRankByPuuid({ platform, puuid: account.puuid });
-
-            const now = Date.now();
-
-            for (const e of Array.isArray(entries) ? entries : []) {
-                if (!RANKED_QUEUES.has(e.queueType)) continue;
-                
-                lastRankByQueue[e.queueType] = {
-                    tier: e.tier,
-                    rank: e.rank ?? null,                 // null for MASTER+ and some queues
-                    lp: Number(e.leaguePoints ?? 0),
-                    wins: Number(e.wins ?? 0),
-                    losses: Number(e.losses ?? 0),
-                    lastUpdatedAt: now,
-                };
-            }
+            lastRankByQueue = toRankSnapshot(entries, { rankedQueues: RANKED_QUEUES });
         } catch {
-        lastRankByQueue = {};
+            lastRankByQueue = {};
         }
         
         // 7. Snapshot latest match ID, for use in game tracking
