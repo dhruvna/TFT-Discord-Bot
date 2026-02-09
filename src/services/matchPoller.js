@@ -43,7 +43,10 @@ async function fetchMatchIds({ riotLimiter, account, count, start = 0 }) {
 
 async function fetchMatch({ riotLimiter, account, matchId }) {
     await riotLimiter.acquire();
-    return getTFTMatch({ regional: account.regional, matchId });
+    return getTFTMatch({ 
+        regional: account.regional, 
+        matchId 
+    });
 }
 
 function collectUnseenMatchIds({ ids, lastMatchId, unseenMatchIds, limit }) {
