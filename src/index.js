@@ -18,6 +18,13 @@ import {
     normalizePlacement,
     standardizeRankLp
  } from './utils/tft.js';
+
+import {
+    DEFAULT_ANNOUNCE_QUEUES,
+    QUEUE_TYPES,
+    isRankedQueue,
+} from './constants/queues.js';
+
 import { createRiotRateLimiter } from './utils/rateLimiter.js';
 import { buildRecapEmbed, computeRecapRows, hoursForMode } from './utils/recap.js';
 import { sleep } from './utils/utils.js';
@@ -82,7 +89,6 @@ async function startMatchPoller(client) {
     const riotLimiter = createRiotRateLimiter({ perSecond: 20, perTwoMinutes: 100 });
     const rankRefreshMinutes = config.rankRefreshIntervalMinutes;
     const rankRefreshMs = rankRefreshMinutes * 60 * 1000;
-
 
     const tick = async () => {
         const fallbackChannelId = config.discordChannelId;
@@ -199,7 +205,7 @@ async function startMatchPoller(client) {
                     const before = account.lastRankByQueue ?? {};
                     let after = before;
                     let recapEvents = Array.isArray(account.recapEvents) ? account.recapEvents : [];
-                    const announceQueues = guild?.announceQueues ?? ["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"];
+                    const announceQueues = guild?.announceQueues ?? DEFAULT_ANNOUNCE_QUEUES;
                     let lastProcessedMatchId = account.lastMatchId;
 
                     for (const [index, matchId] of orderedMatchIds.entries()) {
@@ -211,11 +217,10 @@ async function startMatchPoller(client) {
                         const placement = me?.placement ?? null;
                         
                         const meta = detectQueueMetaFromMatch(match);
-                        const queueType = meta.queueType || "RANKED_TFT";
-                        const isRankedQueue =
-                            queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP";
+                        const queueType = meta.queueType || QUEUE_TYPES.RANKED_TFT;
+                        const isRanked = isRankedQueue(queueType);
 
-                        if (isMostRecent && isRankedQueue) {
+                        if (isMostRecent && isRanked) {
                             try {
                                 await riotLimiter.acquire();
                                 const entries = await getTFTRankByPuuid({
@@ -250,15 +255,15 @@ async function startMatchPoller(client) {
                     
                     const normPlacement = normalizePlacement({ placement, queueType }); 
 
-                    const afterRank = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP") && isMostRecent
+                    const afterRank = isRanked && isMostRecent
                             ? (after?.[queueType] ?? null)
                             : null;
 
-                        const delta = (queueType === "RANKED_TFT" || queueType === "RANKED_TFT_DOUBLE_UP") && isMostRecent
+                        const delta = isRanked && isMostRecent
                             ? (deltas?.[queueType] ?? 0)
                             : 0;
 
-                        if (isRankedQueue) {
+                        if (isRanked) {
                             const gameMs = match.info.game_datetime ?? Date.now();
 
                             const already = recapEvents.some((e) => e.matchId === matchId);
@@ -355,7 +360,11 @@ async function startRecapAutoposter(client) {
             const guild = db[guildId];
             if (!guild?.recap?.enabled) continue;
 
-            const { mode = "DAILY", queue = "RANKED_TFT", lastSentYmd = null } = guild.recap;
+            const {
+                mode = "DAILY",
+                queue = QUEUE_TYPES.RANKED_TFT,
+                lastSentYmd = null,
+            } = guild.recap;
 
             if (hh !== FIRE_HOUR || mm !== FIRE_MINUTE) continue;
 

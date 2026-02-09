@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
 import { loadDb, saveDb, setGuildChannel, setGuildQueueConfig } from "../storage.js";
+import { DEFAULT_ANNOUNCE_QUEUES } from "../constants/queues.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -48,7 +49,7 @@ export default {
         await setGuildChannel(db, guildId, channel.id);
 
         if (effectiveRankedOnly) {
-            await setGuildQueueConfig(db, guildId, ["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"]);
+            await setGuildQueueConfig(db, guildId, DEFAULT_ANNOUNCE_QUEUES);
         } else {
             await setGuildQueueConfig(db, guildId, null);
         }

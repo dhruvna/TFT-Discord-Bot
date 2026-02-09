@@ -2,10 +2,11 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 
 import { listGuildAccounts } from '../storage.js';
 
-const QUEUE_OPTIONS = [
-    { name: "Ranked", value: "RANKED_TFT" },
-    { name: "Double Up", value: "RANKED_TFT_DOUBLE_UP" },
-];
+import {
+  QUEUE_TYPES,
+  RANKED_QUEUE_CHOICES,
+  queueLabel,
+} from "../constants/queues.js";
 
 // Tier ordering (low -> high)
 const TIER_ORDER = [
@@ -92,7 +93,7 @@ export default {
         .setName("queue")
         .setDescription("Which ladder?")
         .setRequired(false)
-        .addChoices(...QUEUE_OPTIONS)
+        .addChoices(...RANKED_QUEUE_CHOICES)
     )
     .addIntegerOption((opt) =>
       opt
@@ -112,7 +113,7 @@ export default {
 
     await interaction.deferReply();
 
-    const queueType = interaction.options.getString("queue") || "RANKED_TFT";
+    const queueType = interaction.options.getString("queue") || QUEUE_TYPES.RANKED_TFT;
     const limit = interaction.options.getInteger("limit") ?? 15;
 
     const accounts = await listGuildAccounts(guildId);
@@ -134,7 +135,7 @@ export default {
 
     const shown = ranked.slice(0, limit);
 
-    const queueLabel = queueType === "RANKED_TFT_DOUBLE_UP" ? "Double Up" : "Ranked";
+    const queueLabel = queueLabel(queueType);
 
     const lines = shown.map((r, i) => {
       const name = `${r.account.gameName}#${r.account.tagLine}`;

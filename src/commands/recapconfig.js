@@ -1,22 +1,12 @@
 // src/commands/recapconfig.js
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { loadDb, saveDb, getGuildRecapConfig, setGuildRecapConfig } from "../storage.js";
+import { RANKED_QUEUE_CHOICES, queueLabel } from "../constants/queues.js";
 
 const MODE_CHOICES = [
   { name: "Daily (last 24h)", value: "DAILY" },
   { name: "Weekly (last 7d)", value: "WEEKLY" },
 ];
-
-const QUEUE_CHOICES = [
-  { name: "Ranked", value: "RANKED_TFT" },
-  { name: "Double Up", value: "RANKED_TFT_DOUBLE_UP" },
-];
-
-function queueLabel(queue) {
-  if (queue === "RANKED_TFT") return "Ranked";
-  if (queue === "RANKED_TFT_DOUBLE_UP") return "Double Up";
-  return queue;
-}
 
 function modeLabel(mode) {
   return mode === "WEEKLY" ? "Weekly" : "Daily";
@@ -44,7 +34,7 @@ export default {
         .setName("queue")
         .setDescription("Which queue to post")
         .setRequired(false)
-        .addChoices(...QUEUE_CHOICES)
+        .addChoices(...RANKED_QUEUE_CHOICES)
     )
     .addBooleanOption((opt) =>
       opt

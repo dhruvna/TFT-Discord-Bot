@@ -2,6 +2,13 @@
 
 import { EmbedBuilder } from "discord.js";
 import { getTFTMatchUrl, getTftRegaliaThumbnailUrl } from "../riot.js";
+import {
+  QUEUE_TYPES,
+  RANKED_QUEUES,
+  isDoubleUpQueue,
+  isRankedQueue,
+  queueLabel,
+} from "../constants/queues.js";
 
 const TIER_BASE = {
   IRON: 0,
@@ -46,13 +53,11 @@ export function standardizeRankLp(rank) {
 
 export function pickRankSnapshot(entries) {
     const now = Date.now();
-    const queues = new Set(['RANKED_TFT', 'RANKED_TFT_DOUBLE_UP']);
-
     const rows = Array.isArray(entries) ? entries : [];
 
     return Object.fromEntries(
         rows
-            .filter((e) => queues.has(e.queueType))
+            .filter((e) => RANKED_QUEUES.has(e.queueType))
             .map((e) => [
                 e.queueType,
                 { 
@@ -78,16 +83,34 @@ export function detectQueueMetaFromMatch(match) {
 
     // const queueId = getQueueIdFromMatch(match);
     if (queueId === 1090) {
-        return { queueId, mode: "NORMAL", queueType: "NORMAL_TFT", label: "Normal" };
+        return {
+            queueId,
+            mode: "NORMAL",
+            queueType: QUEUE_TYPES.NORMAL_TFT,
+            label: queueLabel(QUEUE_TYPES.NORMAL_TFT),
+        };
     }
     if (queueId === 1100) {
-        return { queueId, mode: "RANKED", queueType: "RANKED_TFT", label: "Ranked" };
+        return { queueId, 
+            mode: "RANKED", 
+            queueType: QUEUE_TYPES.RANKED_TFT, 
+            label: queueLabel(QUEUE_TYPES.RANKED_TFT) 
+        };
     }
     if (queueId === 1160) {
-        return { queueId, mode: "DOUBLE UP (Workshop)", queueType: "RANKED_TFT_DOUBLE_UP", label: "Double Up" };
+        return { queueId, 
+            mode: "DOUBLE UP (Workshop)", 
+            queueType: QUEUE_TYPES.RANKED_TFT_DOUBLE_UP, 
+            label: queueLabel(QUEUE_TYPES.RANKED_TFT_DOUBLE_UP) 
+        };
     }
     
-    return { queueId, mode: "UNKNOWN", queueType: "UNKNOWN", label: "UNKNOWN" };
+    return {
+        queueId,
+        mode: "UNKNOWN",
+        queueType: QUEUE_TYPES.UNKNOWN,
+        label: queueLabel(QUEUE_TYPES.UNKNOWN),
+    };
 }
 
 export function normalizePlacement({ placement, queueType}) {
@@ -116,9 +139,7 @@ export function placementToOrdinal(placement) {
 }
 
 export function labelForQueueType(queueType) {
-    if (queueType === "RANKED_TFT") return "Ranked";
-    if (queueType === "RANKED_TFT_DOUBLE_UP") return "Double Up";
-    return queueType || "TFT";
+    return queueLabel(queueType);
 }
 
 export async function buildMatchResultEmbed({ 
@@ -135,24 +156,22 @@ export async function buildMatchResultEmbed({
     const p = typeof placement === "number" ? placement : null;
     const d = typeof delta === "number" ? delta : 0;
 
-    const isRankedQueue =
-        queueType === "RANKED_TFT" ||
-        queueType === "RANKED_TFT_DOUBLE_UP";
+    const isRanked = isRankedQueue(queueType);
     
     const isWin = p !== null && p <= 4;
     const isLoss = p !== null && p >= 5;
     
-    const lpChangeValue = isRankedQueue ? formatDelta(d) : "—";
+    const lpChangeValue = isRanked ? formatDelta(d) : "—";
     const rankValue =
-    isRankedQueue && afterRank?.tier
-        ? `${afterRank.tier} ${afterRank.rank} — ${afterRank.lp} LP`
-        : "—";
+        isRanked && afterRank?.tier
+            ? `${afterRank.tier} ${afterRank.rank} — ${afterRank.lp} LP`
+            : "—";
             
 
     
     const embed = new EmbedBuilder().setURL(matchUrl).setTimestamp(new Date());
     
-    if (isRankedQueue) {
+    if (isRanked) {
         try {
             const thumbUrl = await getTftRegaliaThumbnailUrl({
                 queueType,

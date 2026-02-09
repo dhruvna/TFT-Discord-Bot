@@ -1,13 +1,8 @@
 import { EmbedBuilder } from "discord.js";
+import { queueLabel } from "../constants/queues.js";
 
 export function hoursForMode(mode) {
     return mode === "WEEKLY" ? 24 * 7 : 24;
-}
-
-export function queueLabel(queue) {
-    if (queue === "RANKED_TFT") return "Ranked";
-    if (queue === "RANKED_TFT_DOUBLE_UP") return "Double Up";
-    return queue;
 }
 
 export function modeLabel(mode) {

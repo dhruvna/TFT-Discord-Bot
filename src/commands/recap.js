@@ -6,16 +6,12 @@ import {
   computeRecapRows,
   hoursForMode,
 } from "../utils/recap.js";
+import { RANKED_QUEUE_CHOICES } from "../constants/queues.js";
 
 /* -------------------- Constants -------------------- */
 const MODE_CHOICES = [
   { name: "Daily (last 24h)", value: "DAILY" },
   { name: "Weekly (last 7d)", value: "WEEKLY" },
-];
-
-const QUEUE_CHOICES = [
-  { name: "Ranked", value: "RANKED_TFT" },
-  { name: "Double Up", value: "RANKED_TFT_DOUBLE_UP" },
 ];
 
 /* -------------------- Command -------------------- */
@@ -24,7 +20,11 @@ export default {
     .setName("recap")
     .setDescription("Show Ranked or Double Up recap now, either daily or weekly.")
     .addStringOption((opt) =>
-      opt.setName("queue").setDescription("Queue to recap").setRequired(true).addChoices(...QUEUE_CHOICES)
+      opt
+        .setName("queue")
+        .setDescription("Queue to recap")
+        .setRequired(true)
+        .addChoices(...RANKED_QUEUE_CHOICES)
     )
     .addStringOption((opt) =>
       opt.setName("mode").setDescription("Daily or weekly recap").setRequired(false).addChoices(...MODE_CHOICES)

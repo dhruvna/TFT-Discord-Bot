@@ -14,6 +14,7 @@ import {
     saveDb,
     upsertGuildAccount,
 } from '../storage.js';
+import { RANKED_QUEUES } from "../constants/queues.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -63,11 +64,10 @@ export default {
             const entries = await getTFTRankByPuuid({ platform, puuid: account.puuid });
 
             const now = Date.now();
-            const wanted = new Set(["RANKED_TFT", "RANKED_TFT_DOUBLE_UP"]);
-            
-            for (const e of Array.isArray(entries) ? entries : []) {
-                if (!wanted.has(e.queueType)) continue;
 
+            for (const e of Array.isArray(entries) ? entries : []) {
+                if (!RANKED_QUEUES.has(e.queueType)) continue;
+                
                 lastRankByQueue[e.queueType] = {
                     tier: e.tier,
                     rank: e.rank ?? null,                 // null for MASTER+ and some queues

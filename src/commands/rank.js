@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getTFTRankByPuuid, getTftRegaliaThumbnailUrl, getLeagueOfGraphsUrl } from "../riot.js";
+import { QUEUE_TYPES, queueLabel } from "../constants/queues.js"
 import { getGuildAccountByKey } from "../storage.js";
 import { respondWithAccountChoices } from "../utils/utils.js";
 
@@ -93,15 +94,31 @@ export default {
         }
 
         // 5. Pull out queues we care about
-        const rankedEntry = tftEntries.find(e => e.queueType === 'RANKED_TFT');
-        const doubleUpEntry = tftEntries.find(e => e.queueType === 'RANKED_TFT_DOUBLE_UP');
+        const rankedEntry = tftEntries.find(e => e.queueType === QUEUE_TYPES.RANKED_TFT);
+        const doubleUpEntry = tftEntries.find(e => e.queueType === QUEUE_TYPES.RANKED_TFT_DOUBLE_UP);
 
         // 6. Build embed fields
         const embeds = [];
 
-        if (rankedEntry) embeds.push(await buildQueueEmbed({ account: stored, label: 'Ranked', entry: rankedEntry }));
-        if (doubleUpEntry) embeds.push(await buildQueueEmbed({ account: stored, label: 'Double Up', entry: doubleUpEntry }));
- 
+        if (rankedEntry) {
+            embeds.push(
+                await buildQueueEmbed({ 
+                    account: stored, 
+                    label: queueLabel(QUEUE_TYPES.RANKED_TFT), 
+                    entry: rankedEntry 
+                })
+            );
+        }
+        if (doubleUpEntry) {
+            embeds.push(
+                await buildQueueEmbed({ 
+                    account: stored, 
+                    label: queueLabel(QUEUE_TYPES.RANKED_TFT_DOUBLE_UP), 
+                    entry: doubleUpEntry 
+                })
+            );
+        }
+
         // 7. If no ranked entries, show unranked message
         if (embeds.length === 0) {
             embeds.push(
