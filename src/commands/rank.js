@@ -2,7 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getTFTRankByPuuid, getTftRegaliaThumbnailUrl, getLeagueOfGraphsUrl } from "../riot.js";
 import { QUEUE_TYPES, queueLabel } from "../constants/queues.js"
 import { getGuildAccountByKey } from "../storage.js";
-import { respondWithAccountChoices } from "../utils/utils.js";
+import { respondWithAccountChoices } from "../utils/autocomplete.js";
 
 /* Convert's rank entry to a formatted one line string.
    Example: Emerald II - 75 LP */

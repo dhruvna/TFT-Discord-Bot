@@ -61,7 +61,7 @@ export function toRankSnapshot(entries, { now = Date.now(), rankedQueues = RANKE
         );
     }
 
-function computeRankSnapshotDeltas({ before = {}, after = {} }) {
+export function computeRankSnapshotDeltas({ before = {}, after = {} }) {
     const deltas = {};
     
     for (const [queueType, afterRank] of Object.entries(after)) {

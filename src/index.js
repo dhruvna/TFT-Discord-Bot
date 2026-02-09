@@ -14,12 +14,10 @@ import { getRankSnapshotForQueue } from './utils/rankSnapshot.js';
 // Login to Discord with the bot's token
 const token = config.discordBotToken;
 
+// Create a new client instance with the necessary intents
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
 });
-
-// Load command files
-// add comments to explain each step
 
 // Determines pwd of this file
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
@@ -51,6 +49,7 @@ for (const file of commandFiles) {
 client.once('clientReady', async () => {
     console.log(`Logged in as ${client.user.tag}`);
 
+    // Load the database and log some info about each guild for debugging purposes
     try {
         const db = await loadDb();
         for (const [gid, g] of Object.entries(db)) {
@@ -67,6 +66,7 @@ client.once('clientReady', async () => {
         console.error("[startup] failed reading db:", e);
     }
 
+    // Start the match poller and recap autoposter, and log any errors that occur
     startMatchPoller(client).catch((error) => {
         console.error("Error in match poller:", error);
     });
@@ -76,6 +76,7 @@ client.once('clientReady', async () => {
     });
 });
 
+// Setup a listener for when an interaction is created (e.g., a command is used)
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isAutocomplete()) {
         const command = client.commands.get(interaction.commandName);
@@ -87,7 +88,7 @@ client.on('interactionCreate', async (interaction) => {
         }
         return;
     }
-    
+    // If the interaction is not a chat input command, ignore it
     if (!interaction.isChatInputCommand()) return;
 
     const command = client.commands.get(interaction.commandName);

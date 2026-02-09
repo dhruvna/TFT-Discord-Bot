@@ -1,7 +1,10 @@
 import fs from 'node:fs/promises';
-import path from 'node:path';  
+import path from 'node:path';
 
-const DATA_PATH = path.join(process.cwd(), 'user_data', 'registrations.json');
+const DEFAULT_DATA_PATH = path.join(process.cwd(), 'user_data', 'registrations.json');
+const DATA_PATH = process.env.DATA_PATH
+  ? path.resolve(process.env.DATA_PATH)
+  : path.join(process.env.DATA_DIR ?? path.dirname(DEFAULT_DATA_PATH), 'registrations.json');
 
 async function ensureDataFile() {
   const dir = path.dirname(DATA_PATH);

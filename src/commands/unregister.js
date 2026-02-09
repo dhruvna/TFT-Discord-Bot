@@ -1,9 +1,7 @@
 import { SlashCommandBuilder } from "discord.js";
 
-import {
-    listGuildAccounts,
-    removeGuildAccountByKey
-    } from "../storage.js";
+import { removeGuildAccountByKey } from "../storage.js";
+import { respondWithAccountChoices } from "../utils/autocomplete.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -19,32 +17,7 @@ export default {
     
     async autocomplete(interaction) {
         try {
-            const guildId = interaction.guildId;
-            if (!guildId) {
-                await interaction.respond([]);
-                return;
-            }
-
-            const focused = interaction.options.getFocused() ?? "";
-            const q = focused.toLowerCase();
-
-            const accounts = await listGuildAccounts(guildId);
-
-            const filtered = 
-                q.length === 0
-                    ? accounts
-                    : accounts.filter(a => {
-                        const name = `${a.gameName}#${a.tagLine}`.toLowerCase();
-                        const region = String(a.region ?? "").toLowerCase();
-                        return name.includes(q) || region.includes(q);
-                    });
-            
-            await interaction.respond(
-                filtered.slice(0, 25).map(a => ({
-                    name: `${a.gameName}#${a.tagLine} (${a.region})`,
-                    value: a.key,
-                }))
-            );
+            await respondWithAccountChoices(interaction);
         } catch (err) {
             console.error("Error during unregister autocomplete:", err);
             return interaction.respond([]);
