@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { Client, GatewayIntentBits, Collection } from 'discord.js';
 
 import fs from 'node:fs';
@@ -21,11 +20,11 @@ import {
  } from './utils/tft.js';
 import { createRiotRateLimiter } from './utils/rateLimiter.js';
 import { buildRecapEmbed, computeRecapRows, hoursForMode } from './utils/recap.js';
-import { mustGetEnv, getOptionalEnv, parseIntEnv, sleep } from './utils/utils.js';
-import { match } from 'node:assert';
+import { sleep } from './utils/utils.js';
+import config from './config.js';
 
 // Login to Discord with the bot's token
-const token = mustGetEnv('DISCORD_BOT_TOKEN');
+const token = config.discordBotToken;
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
@@ -78,15 +77,15 @@ function shouldRefreshRank(account, now, maxAgeMs) {
 }
 
 async function startMatchPoller(client) {
-    const intervalSeconds = Number(getOptionalEnv('MATCH_POLL_INTERVAL_SECONDS', '60'));
-    const perAccountDelayMs = Number(getOptionalEnv('MATCH_POLL_PER_ACCOUNT_DELAY_MS', '250'));
+    const intervalSeconds = config.matchPollIntervalSeconds;
+    const perAccountDelayMs = config.matchPollPerAccountDelayMs;
     const riotLimiter = createRiotRateLimiter({ perSecond: 20, perTwoMinutes: 100 });
-    const rankRefreshMinutes = parseIntEnv('RANK_REFRESH_INTERVAL_MINUTES', '180', { min: 5, max: 24 * 60 });
+    const rankRefreshMinutes = config.rankRefreshIntervalMinutes;
     const rankRefreshMs = rankRefreshMinutes * 60 * 1000;
 
 
     const tick = async () => {
-        const fallbackChannelId = process.env.DISCORD_CHANNEL_ID || null;
+        const fallbackChannelId = config.discordChannelId;
         const channelCache = new Map(); // channelId -> channel (cache per tick)
 
         const db = await loadDb();
@@ -329,8 +328,8 @@ async function startMatchPoller(client) {
 }
 
 async function startRecapAutoposter(client) {
-    const FIRE_HOUR = parseIntEnv('RECAP_AUTOPOST_HOUR', '9', { min: 0, max: 23 });
-    const FIRE_MINUTE = parseIntEnv('RECAP_AUTOPOST_MINUTE', '0', { min: 0, max: 59 });
+    const FIRE_HOUR = config.recapAutopostHour;
+    const FIRE_MINUTE = config.recapAutopostMinute;
 
     const tick = async () => {
         const fallbackChannelId = process.env.DISCORD_CHANNEL_ID || null;

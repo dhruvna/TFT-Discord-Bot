@@ -1,6 +1,4 @@
-import 'dotenv/config';
-
-import { mustGetEnv} from './utils/utils.js';
+import config from './config.js';
 
 // Discord dropdown choices for region selection
 export const REGION_CHOICES = [
@@ -47,15 +45,15 @@ const REGION_TO_ROUTES = {
 
 // Convert region choice to routing values, use defaults if missing
 export function resolveRegion(regionMaybe) {
-  const fallback = (process.env.DEFAULT_REGION || 'NA').toUpperCase();
+  const fallback = config.defaultRegion;
   const region = (regionMaybe || fallback).toUpperCase();
   const routes = REGION_TO_ROUTES[region];
   if (!routes) throw new Error(`Unknown region: ${region}`);
   return { region, ...routes };
 }
 
-const RIOT_TFT_API_KEY = mustGetEnv('RIOT_TFT_API_KEY');
-const RIOT_LOL_API_KEY = mustGetEnv('RIOT_LOL_API_KEY');
+const RIOT_TFT_API_KEY = config.riotTftApiKey;
+const RIOT_LOL_API_KEY = config.riotLolApiKey;
 
 async function riotFetchJson(url, gameType = "TFT") {
     const apiKey = gameType === "TFT" ? RIOT_TFT_API_KEY : RIOT_LOL_API_KEY;
@@ -67,7 +65,7 @@ async function riotFetchJson(url, gameType = "TFT") {
     return res.json();
 }
 
-const { regional: DEFAULT_REGIONAL } = resolveRegion(process.env.DEFAULT_REGION || "NA");
+const { regional: DEFAULT_REGIONAL } = resolveRegion();
 
 export async function getAccountByRiotId( {regional = DEFAULT_REGIONAL, gameName, tagLine} ) {
     const url = `https://${regional}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(

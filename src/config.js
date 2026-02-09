@@ -1,0 +1,121 @@
+import 'dotenv/config';
+
+/**
+ * @typedef {Object} AppConfig
+ * @property {string} discordBotToken
+ * @property {string} discordClientId
+ * @property {string} discordGuildId
+ * @property {string} riotTftApiKey
+ * @property {string} riotLolApiKey
+ * @property {string} defaultRegion
+ * @property {number} matchPollIntervalSeconds
+ * @property {number} matchPollPerAccountDelayMs
+ * @property {number} rankRefreshIntervalMinutes
+ * @property {number} recapAutopostHour
+ * @property {number} recapAutopostMinute
+ * @property {string|null} discordChannelId
+ */
+
+const DEFAULT_REGION = 'NA';
+const VALID_REGIONS = new Set([
+    'NA',
+    'EUW',
+    'EUNE',
+    'KR',
+    'BR',
+    'LAN',
+    'LAS',
+    'OCE',
+    'JP',
+    'RU',
+    'TR',
+    'VN',
+    'SG',
+    'PH',
+    'TH',
+    'TW',
+]);
+
+function readEnv(name) {
+    return process.env[name];
+}
+
+function requireString(name) {
+    const value = readEnv(name);
+    if (!value) {
+        throw new Error(`Environment variable ${name} is required`);
+    }
+    return value;
+}
+
+function optionalString(name) {
+    const value = readEnv(name);
+    if (value === undefined || value === '') return null;
+    return value;
+}
+
+function readInt(name, { defaultValue, min = -Infinity, max = Infinity }) {
+const raw = readEnv(name);
+if (raw === undefined || raw === '') {
+  return defaultValue;
+}
+const parsed = Number.parseInt(raw, 10);
+if (!Number.isFinite(parsed)) {
+  throw new Error(`Environment variable ${name} must be an integer`);
+}
+if (parsed < min || parsed > max) {
+  throw new Error(
+    `Environment variable ${name} must be between ${min} and ${max}, got ${parsed}`
+  );
+}
+return parsed;
+}
+
+function readRegion() {
+  const raw = readEnv('DEFAULT_REGION') ?? DEFAULT_REGION;
+  const normalized = String(raw).toUpperCase();
+  if (!VALID_REGIONS.has(normalized)) {
+    throw new Error(`Environment variable DEFAULT_REGION must be one of: ${[
+      ...VALID_REGIONS,
+    ].join(', ')}`);
+  }
+  return normalized;
+}
+
+/** @type {AppConfig} */
+export const config = Object.freeze({
+    discordBotToken: requireString('DISCORD_BOT_TOKEN'),
+    discordClientId: requireString('DISCORD_CLIENT_ID'),
+    discordGuildId: requireString('DISCORD_GUILD_ID'),
+    riotTftApiKey: requireString('RIOT_TFT_API_KEY'),
+    riotLolApiKey: requireString('RIOT_LOL_API_KEY'),
+    defaultRegion: readRegion(),
+    matchPollIntervalSeconds: readInt('MATCH_POLL_INTERVAL_SECONDS', {
+        defaultValue: 60,
+        min: 10,
+        max: 3600,
+    }),
+    matchPollPerAccountDelayMs: readInt('MATCH_POLL_PER_ACCOUNT_DELAY_MS', {
+        defaultValue: 250,
+        min: 0,             
+        max: 10000,
+    }),
+    rankRefreshIntervalMinutes: readInt('RANK_REFRESH_INTERVAL_MINUTES', {
+        defaultValue: 180,
+        min: 5,
+        max: 24 * 60,
+    }),
+    recapAutopostHour: readInt('RECAP_AUTOPOST_HOUR', {
+        defaultValue: 9,
+        min: 0,
+        max: 23,
+    }),
+    recapAutopostMinute: readInt('RECAP_AUTOPOST_MINUTE', {
+        defaultValue: 0,
+        min: 0,
+        max: 59,
+    }),
+    discordChannelId: optionalString('DISCORD_CHANNEL_ID'),
+});
+
+export default config;

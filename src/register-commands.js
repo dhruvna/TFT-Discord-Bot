@@ -1,14 +1,13 @@
-import 'dotenv/config';
 import { REST, Routes } from 'discord.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 
-import { mustGetEnv} from './utils/utils.js';
+import config from './config.js';
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
-const token = mustGetEnv('DISCORD_BOT_TOKEN');
-const clientId = mustGetEnv('DISCORD_CLIENT_ID');
+const token = config.discordBotToken;
+const clientId = config.discordClientId;
 
 const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
@@ -32,7 +31,7 @@ const rest = new REST({ version: '10' }).setToken(token);
 
 console.log('Registering slash commands (guild-only)...');
 
-const guildId = mustGetEnv('DISCORD_GUILD_ID');
+const guildId = config.discordGuildId;
 
 await rest.put(
     Routes.applicationGuildCommands(clientId, guildId),
