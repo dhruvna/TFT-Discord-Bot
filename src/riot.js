@@ -83,6 +83,12 @@ export async function getTFTMatch({ regional, matchId, limiter }) {
 // reduce network requests and improve response time.
 let ddragonVersionCache = null;
 let tftRegaliaCache = null;
+let tftChampionCache = null;
+let tftItemCache = null;
+let tftTraitCache = null;
+let tftChampionNameById = null;
+let tftItemNameById = null;
+let tftTraitNameById = null;
 
 // Normalize a tier string for Data Dragon's title-cased keys.
 // Example: "DIAMOND" -> "Diamond"
@@ -124,21 +130,126 @@ async function loadTFTRegalia() {
     return tftRegaliaCache;
 }
 
+async function loadTFTChampions() {
+    if (tftChampionCache) return tftChampionCache;
+    const version = await getLatestDDragonVersion();
+    const url = `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/tft-champion.json`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Data Dragon TFT champion fetch failed: ${res.status}: ${body}`);
+    }
+
+    tftChampionCache = await res.json();
+    return tftChampionCache;
+}
+
+async function loadTFTItems() {
+    if (tftItemCache) return tftItemCache;
+    const version = await getLatestDDragonVersion();
+    const url = `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/tft-item.json`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Data Dragon TFT item fetch failed: ${res.status}: ${body}`);
+    }
+
+    tftItemCache = await res.json();
+    return tftItemCache;
+}
+
+async function loadTFTTraits() {
+    if (tftTraitCache) return tftTraitCache;
+    const version = await getLatestDDragonVersion();
+    const url = `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/tft-trait.json`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Data Dragon TFT trait fetch failed: ${res.status}: ${body}`);
+    }
+
+    tftTraitCache = await res.json();
+    return tftTraitCache;
+}
+
+async function getChampionNameIndex() {
+    if (tftChampionNameById) return tftChampionNameById;
+    const championData = await loadTFTChampions();
+    const entries = Object.entries(championData?.data ?? {});
+    const map = new Map();
+    for (const entry of entries) {
+        if (entry?.character_id && entry?.name) {
+            map.set(entry.character_id, entry.name);
+        }
+    }
+    tftChampionNameById = map;
+    return tftChampionNameById;
+}
+
+async function getItemNameIndex() {
+    if (tftItemNameById) return tftItemNameById;
+    const itemData = await loadTFTItems();
+    const entries = Object.entries(itemData?.data ?? {});
+    const map = new Map();
+    for (const entry of entries) {
+        if (entry?.item_id && entry?.name) {
+            map.set(entry.item_id, entry.name);
+        }
+    }
+    tftItemNameById = map;
+    return tftItemNameById;
+}
+
+async function getTraitNameIndex() {
+    if (tftTraitNameById) return tftTraitNameById;
+    const traitData = await loadTFTTraits();
+    const entries = Object.entries(traitData?.data ?? {});
+    const map = new Map();
+    for (const entry of entries) {
+        if (entry?.trait_id && entry?.name) {
+            map.set(entry.trait_id, entry.name);
+        }
+    }
+    tftTraitNameById = map;
+    return tftTraitNameById;
+}
+
 // Build a regalia thumbnail URL for a given queue type + tier.
 // Returns null when the tier does not map to a known asset.
 export async function getTftRegaliaThumbnailUrl({ queueType, tier }) {
-  const regalia = await loadTFTRegalia();
-  const version = await getLatestDDragonVersion();
+    const regalia = await loadTFTRegalia();
+    const version = await getLatestDDragonVersion();
 
-  const tierKey = toTitleCaseTier(tier);
-  if (!tierKey) return null;
+    const tierKey = toTitleCaseTier(tier);
+    if (!tierKey) return null;
 
-  // regalia.json is usually shaped like: regalia.data[queueType][tierKey].image.full
-  const entry = regalia?.data?.[queueType]?.[tierKey];
-  const file = entry?.image?.full;
-  if (!file) return null;
+    // regalia.json is usually shaped like: regalia.data[queueType][tierKey].image.full
+    const entry = regalia?.data?.[queueType]?.[tierKey];
+    const file = entry?.image?.full;
+    if (!file) return null;
 
-  return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-regalia/${file}`;
+    return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-regalia/${file}`;
+}
+
+export async function getTftChampionNameById(characterId) {
+    if (!characterId) return null;
+    const map = await getChampionNameIndex();
+    return map.get(characterId) ?? null;
+}
+
+export async function getTftItemNameById(itemId) {
+    if (itemId === null || itemId === undefined) return null;
+    const map = await getItemNameIndex();
+    return map.get(String(itemId)) ?? null;
+}
+
+export async function getTftTraitNameById(traitId) {
+    if (!traitId) return null;
+    const map = await getTraitNameIndex();
+    return map.get(traitId) ?? null;
 }
 
 // Build a champion thumbnail URL from a champion id.

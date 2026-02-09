@@ -158,6 +158,7 @@ async function announceMatchToDiscord({
     queueType,
     delta,
     afterRank,
+    participant,
     guildId,
     channelId,
 }) {
@@ -175,6 +176,7 @@ async function announceMatchToDiscord({
         queueType,
         delta,
         afterRank,
+        participant,
     });
     await channel.send({ embeds: [embed] });
 }
@@ -344,6 +346,7 @@ export async function startMatchPoller(client) {
                             queueType,
                             delta,
                             afterRank,
+                            participant: me,
                             guildId,
                             channelId: channelIdForGuild,
                         });
