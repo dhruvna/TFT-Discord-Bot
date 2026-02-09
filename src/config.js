@@ -55,31 +55,31 @@ function optionalString(name) {
 }
 
 function readInt(name, { defaultValue, min = -Infinity, max = Infinity }) {
-const raw = readEnv(name);
-if (raw === undefined || raw === '') {
-  return defaultValue;
-}
-const parsed = Number.parseInt(raw, 10);
-if (!Number.isFinite(parsed)) {
-  throw new Error(`Environment variable ${name} must be an integer`);
-}
-if (parsed < min || parsed > max) {
-  throw new Error(
-    `Environment variable ${name} must be between ${min} and ${max}, got ${parsed}`
-  );
-}
-return parsed;
+    const raw = readEnv(name);
+    if (raw === undefined || raw === '') {
+        return defaultValue;
+    }
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed)) {
+        throw new Error(`Environment variable ${name} must be an integer`);
+    }
+    if (parsed < min || parsed > max) {
+        throw new Error(
+        `Environment variable ${name} must be between ${min} and ${max}, got ${parsed}`
+        );
+    }
+    return parsed;
 }
 
 function readRegion() {
-  const raw = readEnv('DEFAULT_REGION') ?? DEFAULT_REGION;
-  const normalized = String(raw).toUpperCase();
-  if (!VALID_REGIONS.has(normalized)) {
+    const raw = readEnv('DEFAULT_REGION') ?? DEFAULT_REGION;
+    const normalized = String(raw).toUpperCase();
+    if (!VALID_REGIONS.has(normalized)) {
     throw new Error(`Environment variable DEFAULT_REGION must be one of: ${[
-      ...VALID_REGIONS,
+        ...VALID_REGIONS,
     ].join(', ')}`);
-  }
-  return normalized;
+    }
+    return normalized;
 }
 
 /** @type {AppConfig} */

@@ -4,9 +4,10 @@ import {
     getAccountByRiotId,
     getTFTRankByPuuid,
     getTFTMatchIdsByPuuid,
-    REGION_CHOICES,
     resolveRegion,
 } from '../riot.js';
+
+import { REGION_CHOICES } from '../constants/regions.js';
 
 import {
     makeAccountKey,
