@@ -1,3 +1,6 @@
 node_modules
 .env
 user_data
+tft-champion.json
+tft-item.json
+tft-trait.json

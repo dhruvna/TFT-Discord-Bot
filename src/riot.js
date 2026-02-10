@@ -90,6 +90,7 @@ let tftTraitCache = null;
 let tftChampionNameById = null;
 let tftChampionImageById = null;
 let tftItemNameById = null;
+let tftItemImageById = null;
 let tftTraitNameById = null;
 
 // Normalize a tier string for Data Dragon's title-cased keys.
@@ -185,20 +186,20 @@ async function getChampionNameIndex() {
     if (tftChampionNameById) return tftChampionNameById;
     const championData = await loadTFTChampions();
     const entries = Object.values(championData?.data ?? {});
-    const nameMap = new Map();
-    const imageMap = new Map();
+    const champNameMap = new Map();
+    const champImageMap = new Map();
     for (const entry of entries) {
         if (entry?.id) {
             if (entry?.name) {
-                nameMap.set(entry.id, entry.name);
+                champNameMap.set(entry.id, entry.name);
             }
             if (entry?.image?.full) {
-                imageMap.set(entry.id, entry.image.full);
+                champImageMap.set(entry.id, entry.image.full);
             }
         }
     }
-    tftChampionNameById = nameMap;
-    tftChampionImageById = imageMap;
+    tftChampionNameById = champNameMap;
+    tftChampionImageById = champImageMap;
 
     return tftChampionNameById;
 }
@@ -207,13 +208,21 @@ async function getItemNameIndex() {
     if (tftItemNameById) return tftItemNameById;
     const itemData = await loadTFTItems();
     const entries = Object.values(itemData?.data ?? {});
-    const map = new Map();
+    const itemNameMap = new Map();
+    const itemImageMap = new Map();
     for (const entry of entries) {
-        if (entry?.id && entry?.name) {
-            map.set(String(entry.id), entry.name);
+        if (entry?.id) {
+            if (entry?.name) {
+                itemNameMap.set(String(entry.id), entry.name);
+            }
+            if (entry?.image?.full) {
+                itemImageMap.set(String(entry.id), entry.image.full);
+            }
         }
     }
-    tftItemNameById = map;
+    tftItemNameById = itemNameMap;
+    tftItemImageById = itemImageMap;
+
     return tftItemNameById;
 }
 
@@ -266,9 +275,20 @@ export async function getTftChampionImageById(characterId) {
 }
 
 export async function getTftItemNameById(itemId) {
-    if (itemId === null || itemId === undefined) return null;
+    if (!itemId) return null;
     const map = await getItemNameIndex();
-    return map.get(String(itemId)) ?? null;
+    return map.get(itemId) ?? null;
+}
+
+export async function getTftItemImageById(itemId) {
+    if (!itemId) return null;
+    if (!tftItemImageById) {
+        await getItemNameIndex(); // loads both name and image maps
+    }
+    const version = await getLatestDDragonVersion();
+    const file = tftItemImageById?.get(itemId);
+    if (!file) return null;
+    return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-item/${file}`;
 }
 
 export async function getTftTraitNameById(traitId) {

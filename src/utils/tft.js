@@ -120,13 +120,9 @@ async function formatUnitsSummary(units) {
             ? unit.itemNames
             : unit?.items;
         let itemNames = [];
-        if (Array.isArray(itemIds)) {
-            itemNames = await Promise.all(
-                itemIds.map(async (itemId) => {
-                    const itemName = await getTftItemNameById(itemId);
-                    return itemName ?? `Item ${itemId}`;
-                })
-            );
+        for (const itemId of itemIds || []) {
+            const itemName = await getTftItemNameById(itemId);
+            if (itemName) itemNames.push(itemName);
         }
         const itemsText = itemNames.length > 0 ? itemNames.join(", ") : "No items";
         const unitName = name ?? fallbackName;
@@ -230,9 +226,9 @@ export async function buildMatchResultEmbed({
     const unitsSummary = await formatUnitsSummary(participant?.units);
     const traitsSummary = await formatTraitsSummary(participant?.traits);
 
-    if (unitsSummary) {
-        embed.addFields({ name: "Units", value: unitsSummary });
-    }
+    // if (unitsSummary) {
+    //     embed.addFields({ name: "Units", value: unitsSummary });
+    // }
     if (traitsSummary) {
         embed.addFields({ name: "Traits", value: traitsSummary, inline: true });
     }

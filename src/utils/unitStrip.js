@@ -1,5 +1,5 @@
 import { createCanvas, loadImage } from "@napi-rs/canvas";
-import { getTftChampionImageById } from "../riot.js";
+import { getTftChampionImageById, getTftItemImageById } from "../riot.js";
 
 const DEFAULT_TILE_SIZE = 64;
 const DEFAULT_PADDING = 6;
@@ -32,7 +32,17 @@ function drawStarTier(ctx, stars, x, y) {
 
 async function loadUnitImage(characterId) {
     const url = await getTftChampionImageById(characterId);
-    console.log(`[Unit Strip] Loading image for character ID ${characterId} from URL: ${url}`);
+    // console.log(`[Unit Strip] Loading image for character ID ${characterId} from URL: ${url}`);
+    if (!url) return null;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    return loadImage(buffer);
+}
+
+async function loadItemImage(itemId) {
+    const url = await getTftItemImageById(itemId);
+    // console.log(`[Unit Strip] Loading image for item ID ${itemId} from URL: ${url}`);
     if (!url) return null;
     const res = await fetch(url);
     if (!res.ok) return null;
@@ -66,9 +76,23 @@ export async function buildUnitStripImage(units, options = {}) {
             const row = Math.floor(index / columns);
             const x = padding + col * (tileSize + padding);
             const y = padding + row * (tileSize + padding);
-            const image = await loadUnitImage(unit?.character_id);
-            if (image) {
-                ctx.drawImage(image, x, y, tileSize, tileSize);
+            const champImage = await loadUnitImage(unit?.character_id); 
+            const itemIds = Array.isArray(unit?.itemNames) && unit.itemNames.length > 0
+                ? unit.itemNames
+                : unit?.items;
+            const itemImages = [];
+            for (const itemId of itemIds || []) {
+                const itemImage = await loadItemImage(itemId);
+                if (itemImage) itemImages.push(itemImage);
+            }
+            if (champImage) {
+                ctx.drawImage(champImage, x, y, tileSize, tileSize);
+                const itemSize = Math.floor(tileSize / 2.5);
+                itemImages.forEach((img, i) => {
+                    const itemX = x + tileSize - itemSize - 4;
+                    const itemY = y + tileSize - itemSize - 4 - i * (itemSize + 2);
+                    ctx.drawImage(img, itemX, itemY, itemSize, itemSize);
+                });
             } else {
                 ctx.fillStyle = "#2f2f3a";
                 ctx.fillRect(x, y, tileSize, tileSize);
