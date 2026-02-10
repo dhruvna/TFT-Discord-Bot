@@ -3,6 +3,7 @@
 
 import { EmbedBuilder } from "discord.js";
 import { queueLabel } from "../constants/queues.js";
+import { medalForIndex } from "./presentation.js";
 
 // === Mode helpers ===
 // These keep the mode -> hours/label mapping consistent everywhere.
@@ -15,14 +16,6 @@ export function modeLabel(mode) {
 }
 
 // === Formatting helpers ===
-// Emojis provide fast visual ranking for the top entries.
-function medal(i) {
-  if (i === 0) return "🥇";
-  if (i === 1) return "🥈";
-  if (i === 2) return "🥉";
-  return `${i + 1}.`;
-}
-
 // Normalize LP deltas into a human-readable string.
 function formatDelta(delta) {
   const d = Number(delta ?? 0);
@@ -84,7 +77,7 @@ function sortByLosses(rows) {
 function buildLines(rows, limit) {
   return rows.slice(0, limit).map((r, i) => {
     const games = r.games > 0 ? ` — ${r.games} games` : "";
-    return `${medal(i)} **${accountName(r.account)}** ${formatDelta(r.delta)}${games}`;
+    return `${medalForIndex(i)} **${accountName(r.account)}** ${formatDelta(r.delta)}${games}`;
   });
 }
 

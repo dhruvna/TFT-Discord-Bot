@@ -3,20 +3,7 @@ import { getTFTRankByPuuid, getTftRegaliaThumbnailUrl, getLeagueOfGraphsUrl } fr
 import { QUEUE_TYPES, queueLabel } from "../constants/queues.js"
 import { getGuildAccountByKey } from "../storage.js";
 import { respondWithAccountChoices } from "../utils/autocomplete.js";
-
-/* Convert's rank entry to a formatted one line string.
-   Example: Emerald II - 75 LP */
-function formatRankLine(entry) {
-    return `${entry.tier} ${entry.rank} - ${entry.leaguePoints} LP`;
-}
-
-/* Winrate isn't given by Riot, compute it here.
-   Return "-" if no games played yet. */
-function computeWinrate(wins, losses) {
-    const total = wins + losses;
-    if (total === 0) return "-";
-    return `${((wins / total) * 100).toFixed(1)}%`;
-}
+import { formatRankLine, formatWinrate } from "../utils/presentation.js";
 
 /* Add a section for a specific queue type to the fields array 
    - A header field with the rank line
@@ -24,7 +11,7 @@ function computeWinrate(wins, losses) {
 function addQueueSection(fields, label, entry) {
     const wins = entry.wins ?? 0;
     const losses = entry.losses ?? 0;
-    const wr = computeWinrate(wins, losses);
+    const wr = formatWinrate(wins, losses);
 
     // Header / rank line
     fields.push({ name: label, value: `**${formatRankLine(entry)}**`, inline: false });

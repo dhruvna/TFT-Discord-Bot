@@ -9,6 +9,7 @@ import {
   queueLabel,
 } from "../constants/queues.js";
 import { getRankSnapshotForQueue } from "../utils/rankSnapshot.js";
+import { formatRankWithLp, formatWinrate, medalForIndex } from "../utils/presentation.js";
 
 // === Ranking constants ===
 // Tier ordering (low -> high) used to compute a sortable score.
@@ -33,15 +34,6 @@ const DIVISION_ORDER = {
   I: 3,
 };
 
-// === Formatting helpers ===
-// Medals add quick visual cues for top placements.
-function medalForPlace(i) {
-  if (i === 0) return "🥇";
-  if (i === 1) return "🥈";
-  if (i === 2) return "🥉";
-  return `${i + 1}.`;
-}
-
 // Convert a tier name into its index in TIER_ORDER.
 function tierIndex(tier) {
   const idx = TIER_ORDER.indexOf(tier);
@@ -62,24 +54,6 @@ function rankScore(rank) {
 
     // big base number so tiers/divisions dominate
     return t * 1_000_000 + div * 10_000 + lp;
-}
-
-
-// Format rank as text for embeds.
-function formatRank(rank) {
-    if (!rank?.tier) return "Unranked";
-    const lp = Number(rank.lp ?? rank.leaguePoints ?? 0);
-    const isApex = ["MASTER", "GRANDMASTER", "CHALLENGER"].includes(rank.tier);
-
-    return isApex
-        ? `${rank.tier} — ${lp} LP`
-        : `${rank.tier} ${rank.rank} — ${lp} LP`;
-}
-
-function computeWinrate(wins = 0, losses = 0) {
-    const total = wins + losses;
-    if (total <= 0) return "-";
-    return `${((wins / total) * 100).toFixed(1)}%`;
 }
 
 // === Slash command definition ===
@@ -143,16 +117,16 @@ export default {
     // Build the human-readable lines shown in the embed.
     const lines = shown.map((r, i) => {
       const name = `${r.account.gameName}#${r.account.tagLine}`;
-      const rankStr = formatRank(r.rank);
+      const rankStr = formatRankWithLp(r.rank);
     
       const wins = Number(r.rank?.wins ?? 0);
       const losses = Number(r.rank?.losses ?? 0);
-      const wr = computeWinrate(wins, losses);
+      const wr = formatWinrate(wins, losses);
 
       // Only show W/L if we have an entry
       const stats = r.rank?.tier ? ` • ${wins}W-${losses}L • ${wr}` : "";
 
-      return `${medalForPlace(i)} **${name}** — ${rankStr}${stats}`;
+      return `${medalForIndex(i)} **${name}** — ${rankStr}${stats}`;
     });
 
     // Build and send the embed.
