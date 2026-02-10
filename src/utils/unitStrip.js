@@ -32,6 +32,7 @@ function drawStarTier(ctx, stars, x, y) {
 
 async function loadUnitImage(characterId) {
     const url = await getTftChampionImageById(characterId);
+    console.log(`[Unit Strip] Loading image for character ID ${characterId} from URL: ${url}`);
     if (!url) return null;
     const res = await fetch(url);
     if (!res.ok) return null;
@@ -60,7 +61,7 @@ export async function buildUnitStripImage(units, options = {}) {
     ctx.fillRect(0, 0, width, height);
 
     await Promise.all(
-        normalized.map(async (units, index) => {
+        normalized.map(async (unit, index) => {
             const col = index % columns;
             const row = Math.floor(index / columns);
             const x = padding + col * (tileSize + padding);

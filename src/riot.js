@@ -5,6 +5,7 @@
 import config from './config.js';
 import { ALLOWED_REGIONS, REGION_TO_ROUTES } from './constants/regions.js';
 import { createRiotRateLimiter } from './utils/rateLimiter.js';
+import fs from 'node:fs/promises';
 
 // === Region resolution ===
 // Convert a user-provided region into the routing values expected by Riot.
@@ -140,8 +141,9 @@ async function loadTFTChampions() {
         const body = await res.text();
         throw new Error(`Data Dragon TFT champion fetch failed: ${res.status}: ${body}`);
     }
-
     tftChampionCache = await res.json();
+    // let's also cache the raw JSON to disk for debugging and future reference
+    await fs.writeFile('./tft-champion.json', JSON.stringify(tftChampionCache, null, 2), 'utf-8');
     return tftChampionCache;
 }
 
@@ -157,6 +159,8 @@ async function loadTFTItems() {
     }
 
     tftItemCache = await res.json();
+    // let's also cache the raw JSON to disk for debugging and future reference
+    await fs.writeFile('./tft-item.json', JSON.stringify(tftItemCache, null, 2), 'utf-8');
     return tftItemCache;
 }
 
@@ -172,6 +176,8 @@ async function loadTFTTraits() {
     }
 
     tftTraitCache = await res.json();
+    // let's also cache the raw JSON to disk for debugging and future reference
+    await fs.writeFile('./tft-trait.json', JSON.stringify(tftTraitCache, null, 2), 'utf-8');
     return tftTraitCache;
 }
 
@@ -182,17 +188,18 @@ async function getChampionNameIndex() {
     const nameMap = new Map();
     const imageMap = new Map();
     for (const entry of entries) {
-        if (entry?.character_id) {
+        if (entry?.id) {
             if (entry?.name) {
-                nameMap.set(entry.character_id, entry.name);
+                nameMap.set(entry.id, entry.name);
             }
             if (entry?.image?.full) {
-                imageMap.set(entry.character_id, entry.image.full);
+                imageMap.set(entry.id, entry.image.full);
             }
         }
     }
     tftChampionNameById = nameMap;
     tftChampionImageById = imageMap;
+
     return tftChampionNameById;
 }
 
@@ -247,7 +254,7 @@ export async function getTftChampionNameById(characterId) {
     return map.get(characterId) ?? null;
 }
 
-export async function getTftChampionImageById(characterId) {
+export async function getTftChampionImageById(characterId) { 
     if (!characterId) return null;
     if (!tftChampionImageById) {
         await getChampionNameIndex(); // loads both name and image maps
