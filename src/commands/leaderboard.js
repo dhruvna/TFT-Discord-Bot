@@ -22,8 +22,8 @@ const TIER_ORDER = [
   "EMERALD", // 2000 - 2399
   "DIAMOND", // 2400 - 2799
   "MASTER", // 2800+
-  "GRANDMASTER", 
-  "CHALLENGER", 
+  "GRANDMASTER",
+  "CHALLENGER",
 ];
 
 // Division ordering for non-apex tiers.
