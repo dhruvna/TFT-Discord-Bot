@@ -1,5 +1,6 @@
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { getTftChampionImageById, getTftItemImageById, getTftTraitImageById } from "../riot.js";
+import { fileURLToPath } from "node:url";
 
 const DEFAULT_TILE_SIZE = 76;
 const DEFAULT_PADDING = 10;
@@ -8,6 +9,48 @@ const DEFAULT_COLUMNS = 6;
 
 const ITEM_ROW_RATIO = 0.3;
 const PORTRAIT_ROW_RATIO = 1 - ITEM_ROW_RATIO;
+const STAR_ROW_HEIGHT = 16;
+const STAR_ICON_SIZE = 11;
+const STAR_ICON_SPACING = 3;
+
+const COST_STAR_PATHS = {
+    1: "assets/1CostStar.svg",
+    2: "assets/2CostStar.svg",
+    3: "assets/3CostStar.svg",
+    4: "assets/4CostStar.svg",
+    5: "assets/5CostStar.svg",
+};
+
+const starAssetCache = new Map();
+
+function normalizeUnitCost(rarity) {
+    const value = Number(rarity ?? 0);
+    if (!Number.isFinite(value)) return 1;
+
+    if (value >= 6) return 5;  // 6 and 7 both mean 5 cost
+    if (value === 4) return 4; // 4 means 4 cost
+    if (value === 2) return 3; // 2 means 3 cost
+    if (value === 1) return 2; // 1 means 2 cost
+    return 1; // 0 means 1 cost
+}
+
+function getCostStarAssetPath(unit) {
+    const cost = normalizeUnitCost(unit?.rarity);
+    return COST_STAR_PATHS[cost >= 5 ? 5 : cost];
+}
+
+async function loadCostStarImage(unit) {
+    const assetPath = getCostStarAssetPath(unit);
+    if (!assetPath) return null;
+
+    if (!starAssetCache.has(assetPath)) {
+        const filePath = fileURLToPath(new URL(`../../${assetPath}`, import.meta.url));
+        const imagePromise = loadImage(filePath).catch(() => null);
+        starAssetCache.set(assetPath, imagePromise);
+    }
+
+    return starAssetCache.get(assetPath);
+}
 
 function getUnitTierColor(unit) {
     // tier means star level
@@ -56,34 +99,23 @@ function normalizeTraits(traits, maxTraits = 8) {
     return activeTraits.slice(0, maxTraits);
 }
 
-function drawStarTier(ctx, stars, x, y) {
+function drawTierStars(ctx, starImage, stars, x, y, width) {
     const count = Math.min(3, Math.max(0, Number(stars ?? 0)));
-    if (!Number.isFinite(count) || count <= 0) return;
+    if (!starImage || !Number.isFinite(count) || count <= 0) return;
 
-    const markerRadius = 3;
-    const markerSpacing = 4;
-    const badgePaddingX = 5;
-    const badgePaddingY = 4;
-    const badgeHeight = markerRadius * 2 + badgePaddingY * 2;
-    const badgeWidth =
-        badgePaddingX * 2 + count * markerRadius * 2 + (count - 1) * markerSpacing;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-    ctx.fillRect(x, y, badgeWidth, badgeHeight);
-
-    const markerY = y + badgeHeight / 2;
-    const startX = x + badgePaddingX + markerRadius;
+    const totalWidth = count * STAR_ICON_SIZE + (count - 1) * STAR_ICON_SPACING;
+    const startX = Math.floor(x + (width - totalWidth) / 2);
+    const drawY = Math.floor(y + (STAR_ROW_HEIGHT - STAR_ICON_SIZE) / 2);
 
     for (let i = 0; i < count; i += 1) {
-        const markerX = startX + i * (markerRadius * 2 + markerSpacing);
-        ctx.beginPath();
-        ctx.arc(markerX, markerY, markerRadius, 0, Math.PI * 2);
-        ctx.fill();
+        const drawX = startX + i * (STAR_ICON_SIZE + STAR_ICON_SPACING);
+        ctx.drawImage(starImage, drawX, drawY, STAR_ICON_SIZE, STAR_ICON_SIZE);
     }
 }
 
 async function loadUnitImage(characterId) {
     const url = await getTftChampionImageById(characterId);
-    if (!url) return null;
+    if (!url) return characterId ? null : undefined; // return undefined if no ID provided, null if ID provided but no image found
     const res = await fetch(url);
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
@@ -136,6 +168,26 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
     ctx.closePath();
 }
 
+function drawMonochromeTraitIcon(ctx, traitImage, x, y, size) {
+    if (!traitImage) return;
+
+    try {
+        const offscreen = createCanvas(size, size);
+        const offscreenCtx = offscreen.getContext("2d");
+
+        offscreenCtx.drawImage(traitImage, 0, 0, size, size);
+        offscreenCtx.globalCompositeOperation = "source-atop";
+        offscreenCtx.fillStyle = "#000";
+        offscreenCtx.fillRect(0, 0, size, size);
+        offscreenCtx.globalCompositeOperation = "source-over";
+
+        ctx.drawImage(offscreen, x, y, size, size);
+    } catch {
+        // Fallback to original image if recolor fails for any reason.
+        ctx.drawImage(traitImage, x, y, size, size);
+    }
+}
+
 export async function buildUnitStripImage(units, options = {}) {
     const {
         tileSize = DEFAULT_TILE_SIZE,
@@ -152,9 +204,10 @@ export async function buildUnitStripImage(units, options = {}) {
 
     const rows = Math.ceil(normalized.length / columns);
     const cardWidth = tileSize;
-    const cardHeight = Math.floor(tileSize * 1.25);
-    const portraitHeight = Math.floor(cardHeight * PORTRAIT_ROW_RATIO);
-    const itemRowHeight = cardHeight - portraitHeight;
+    const contentHeight = Math.floor(tileSize * 1.25);
+    const cardHeight = contentHeight + STAR_ROW_HEIGHT;
+    const portraitHeight = Math.floor(contentHeight * PORTRAIT_ROW_RATIO);
+    const itemRowHeight = contentHeight - portraitHeight;
 
     const traitColumns = normalizedTraits.length;
     const unitGridWidth = columns * cardWidth + (columns + 1) * padding;
@@ -193,15 +246,14 @@ export async function buildUnitStripImage(units, options = {}) {
 
             const traitBackground = getTraitTierColor(trait);
             ctx.fillStyle = traitBackground;
-            // const border = getTraitTierColor(trait);
-            // ctx.fillStyle = "rgba(28, 30, 42, 0.95)";
             drawRoundedRect(ctx, iconX, iconY, traitIconSize, traitIconSize, 6);
             ctx.fill();
 
             if (traitImage) {
-                ctx.drawImage(traitImage, iconX + 2, iconY + 2, traitIconSize - 4, traitIconSize - 4);
+                drawMonochromeTraitIcon(ctx, traitImage, iconX + 2, iconY + 2, traitIconSize - 4);
             }
 
+            ctx.strokeStyle = "#000";
             ctx.lineWidth = 2;
             drawRoundedRect(ctx, iconX + 1, iconY + 1, traitIconSize - 2, traitIconSize - 2, 5);
             ctx.stroke();
@@ -216,6 +268,7 @@ export async function buildUnitStripImage(units, options = {}) {
         const y = unitGridStartY + padding + row * (cardHeight + padding);
 
         const champImage = await loadUnitImage(unit?.character_id);
+        const starImage = await loadCostStarImage(unit);
         const itemIds = Array.isArray(unit?.itemNames) && unit.itemNames.length > 0
             ? unit.itemNames
             : unit?.items;
@@ -230,14 +283,24 @@ export async function buildUnitStripImage(units, options = {}) {
         drawRoundedRect(ctx, x, y, cardWidth, cardHeight, 6);
         ctx.fill();
 
+        drawTierStars(ctx, starImage, unit?.tier, x, y, cardWidth);
+
+        const portraitY = y + STAR_ROW_HEIGHT;
         if (champImage) {
-            ctx.drawImage(champImage, x + 3, y + 3, cardWidth - 6, portraitHeight - 5);
+            ctx.drawImage(champImage, x + 3, portraitY + 3, cardWidth - 6, portraitHeight - 5);
         } else {
-            ctx.fillStyle = "#2f2f3a";
-            ctx.fillRect(x + 3, y + 3, cardWidth - 6, portraitHeight - 5);
+            // if no image, put the unit id as text
+            ctx.fillStyle = "#fff";
+            ctx.font = "10px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            const textX = x + cardWidth / 2;
+            const textY = portraitY + portraitHeight / 2;
+            const text = String(unit?.character_id ?? "Unknown").toUpperCase();
+            ctx.fillText(text, textX, textY, cardWidth - 10);
         }
 
-        const itemRowY = y + portraitHeight;
+        const itemRowY = portraitY + portraitHeight;
         ctx.fillStyle = "rgba(10, 12, 20, 0.95)";
         ctx.fillRect(x + 1, itemRowY, cardWidth - 2, itemRowHeight - 1);
 
@@ -261,8 +324,6 @@ export async function buildUnitStripImage(units, options = {}) {
         ctx.lineWidth = 3;
         drawRoundedRect(ctx, x + 1.5, y + 1.5, cardWidth - 3, cardHeight - 3, 5);
         ctx.stroke();
-
-        drawStarTier(ctx, unit?.tier, x + 4, y + 4);
     }
 
     return canvas.toBuffer("image/png");

@@ -99,58 +99,6 @@ function formatStarTier(stars) {
     return "★".repeat(Math.min(3, count));
 }
 
-async function formatUnitsSummary(units) {
-    if (!Array.isArray(units) || units.length === 0) return null;
-
-    const sortedUnits = [...units].sort((a, b) => {
-        const tierA = Number(a?.tier ?? 0);
-        const tierB = Number(b?.tier ?? 0);
-        if (tierB !== tierA) return tierB - tierA; // higher star tiers first
-        const costA = Number(a?.rarity ?? 0);
-        const costB = Number(b?.rarity ?? 0);
-        return costB - costA; // then higher rarity
-    });
-
-    const lines = [];
-    for (const unit of sortedUnits) {
-        const name = await getTftChampionNameById(unit?.character_id);
-        const fallbackName = unit?.character_id ?? "Unknown Unit";
-        const starText = formatStarTier(unit?.tier);
-        const itemIds = Array.isArray(unit?.itemNames) && unit.itemNames.length > 0
-            ? unit.itemNames
-            : unit?.items;
-        let itemNames = [];
-        for (const itemId of itemIds || []) {
-            const itemName = await getTftItemNameById(itemId);
-            if (itemName) itemNames.push(itemName);
-        }
-        const itemsText = itemNames.length > 0 ? itemNames.join(", ") : "No items";
-        const unitName = name ?? fallbackName;
-        lines.push(`${starText} ${unitName} - ${itemsText}`.trim());
-        if (lines.length >= 10) break; // limit to 10 units bc more than that is pretty rare + unwieldy
-    }
-    return lines.join("\n");
-}
-
-async function formatTraitsSummary(traits) {
-    if (!Array.isArray(traits) || traits.length === 0) return null;
-    const activeTraits = traits
-        .filter((trait) => Number(trait?.tier_current ?? 0) > 0)
-        .sort((a, b) => Number(b?.tier_current ?? 0) - Number(a?.tier_current ?? 0)); // higher tier first
-    
-    if (activeTraits.length === 0) return null;
-
-    const lines = [];
-    for (const trait of activeTraits) {
-        const name = await getTftTraitNameById(trait?.name);
-        const fallbackName = trait?.name ?? "Unknown Trait";
-        const tierValue = Number(trait?.tier_current ?? 0);
-        lines.push(`${name ?? fallbackName} (Tier ${tierValue})`);
-        if (lines.length >= 10) break; // limit to 10 traits for readability
-    }
-    return lines.join("\n");
-}
-
 // === Embed construction ===
 // Build the Discord embed used for match announcements.
 export async function buildMatchResultEmbed({ 
