@@ -87,6 +87,7 @@ let tftChampionCache = null;
 let tftItemCache = null;
 let tftTraitCache = null;
 let tftChampionNameById = null;
+let tftChampionImageById = null;
 let tftItemNameById = null;
 let tftTraitNameById = null;
 
@@ -116,7 +117,6 @@ async function getLatestDDragonVersion() {
 // Fetch and cache TFT regalia metadata so we can resolve tier images.
 async function loadTFTRegalia() {
     if (tftRegaliaCache) return tftRegaliaCache;
-
     const version = await getLatestDDragonVersion();
     const url = `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/tft-regalia.json`;
 
@@ -178,25 +178,32 @@ async function loadTFTTraits() {
 async function getChampionNameIndex() {
     if (tftChampionNameById) return tftChampionNameById;
     const championData = await loadTFTChampions();
-    const entries = Object.entries(championData?.data ?? {});
-    const map = new Map();
+    const entries = Object.values(championData?.data ?? {});
+    const nameMap = new Map();
+    const imageMap = new Map();
     for (const entry of entries) {
-        if (entry?.character_id && entry?.name) {
-            map.set(entry.character_id, entry.name);
+        if (entry?.character_id) {
+            if (entry?.name) {
+                nameMap.set(entry.character_id, entry.name);
+            }
+            if (entry?.image?.full) {
+                imageMap.set(entry.character_id, entry.image.full);
+            }
         }
     }
-    tftChampionNameById = map;
+    tftChampionNameById = nameMap;
+    tftChampionImageById = imageMap;
     return tftChampionNameById;
 }
 
 async function getItemNameIndex() {
     if (tftItemNameById) return tftItemNameById;
     const itemData = await loadTFTItems();
-    const entries = Object.entries(itemData?.data ?? {});
+    const entries = Object.values(itemData?.data ?? {});
     const map = new Map();
     for (const entry of entries) {
-        if (entry?.item_id && entry?.name) {
-            map.set(entry.item_id, entry.name);
+        if (entry?.id && entry?.name) {
+            map.set(String(entry.id), entry.name);
         }
     }
     tftItemNameById = map;
@@ -206,7 +213,7 @@ async function getItemNameIndex() {
 async function getTraitNameIndex() {
     if (tftTraitNameById) return tftTraitNameById;
     const traitData = await loadTFTTraits();
-    const entries = Object.entries(traitData?.data ?? {});
+    const entries = Object.values(traitData?.data ?? {});
     const map = new Map();
     for (const entry of entries) {
         if (entry?.trait_id && entry?.name) {
@@ -240,6 +247,17 @@ export async function getTftChampionNameById(characterId) {
     return map.get(characterId) ?? null;
 }
 
+export async function getTftChampionImageById(characterId) {
+    if (!characterId) return null;
+    if (!tftChampionImageById) {
+        await getChampionNameIndex(); // loads both name and image maps
+    }
+    const version = await getLatestDDragonVersion();
+    const file = tftChampionImageById?.get(characterId);
+    if (!file) return null;
+    return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-champion/${file}`;
+}
+
 export async function getTftItemNameById(itemId) {
     if (itemId === null || itemId === undefined) return null;
     const map = await getItemNameIndex();
@@ -254,9 +272,9 @@ export async function getTftTraitNameById(traitId) {
 
 // Build a champion thumbnail URL from a champion id.
 // Defaults to Aatrox so callers always get a valid image.
-export async function getTftChampionThumbnail({championId = "Aatrox"}) {
+export async function getTftChampionThumbnail({championId = "TFT16_Aatrox"}) {
     const version = await getLatestDDragonVersion();
-    return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-champion/TFT16_${championId})_splash_centered_0.TFT_Set16.png`;
+    return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-champion/${championId}_splash_centered_0.TFT_Set16.png`;
 }
 
 // === External link helpers ===

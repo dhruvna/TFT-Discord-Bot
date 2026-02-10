@@ -169,7 +169,7 @@ async function announceMatchToDiscord({
         return;
     }
 
-    const embed = await buildMatchResultEmbed({
+    const { embed, files } = await buildMatchResultEmbed({
         account,
         placement,
         matchId,
@@ -178,7 +178,7 @@ async function announceMatchToDiscord({
         afterRank,
         participant,
     });
-    await channel.send({ embeds: [embed] });
+    await channel.send({ embeds: [embed], files });
 }
 
 // Should this match be announced based on guild configuration?

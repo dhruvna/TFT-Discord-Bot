@@ -9,7 +9,7 @@ import {
     getTftTraitNameById,
     getTftRegaliaThumbnailUrl,
 } from "../riot.js";
-
+import { buildUnitStripImage } from "./unitStrip.js";
 import {
   QUEUE_TYPES,
   isRankedQueue,
@@ -128,7 +128,6 @@ async function formatUnitsSummary(units) {
                 })
             );
         }
-
         const itemsText = itemNames.length > 0 ? itemNames.join(", ") : "No items";
         const unitName = name ?? fallbackName;
         lines.push(`${starText} ${unitName} - ${itemsText}`.trim());
@@ -139,7 +138,6 @@ async function formatUnitsSummary(units) {
 
 async function formatTraitsSummary(traits) {
     if (!Array.isArray(traits) || traits.length === 0) return null;
-
     const activeTraits = traits
         .filter((trait) => Number(trait?.tier_current ?? 0) > 0)
         .sort((a, b) => Number(b?.tier_current ?? 0) - Number(a?.tier_current ?? 0)); // higher tier first
@@ -236,11 +234,18 @@ export async function buildMatchResultEmbed({
         embed.addFields({ name: "Units", value: unitsSummary });
     }
     if (traitsSummary) {
-        embed.addFields({ name: "Traits", value: traitsSummary });
+        embed.addFields({ name: "Traits", value: traitsSummary, inline: true });
     }
 
-    if (unitsSummary || traitsSummary) {
-        embed.setImage("https://placehold.co/600x200/png?text=Units+%26+Traits");
+    let files = [];
+    try {
+        const unitImage = await buildUnitStripImage(participant?.units);
+        if (unitImage) {
+            files = [{ attachment: unitImage, name: "units.png" }];
+            embed.setImage("attachment://units.png");
+        }
+    } catch {
+        // ignore image generation errors
     }
-    return embed;
+    return { embed, files };
 }
