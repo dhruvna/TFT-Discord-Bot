@@ -222,20 +222,20 @@ export async function buildMatchResultEmbed({
         { name: "LP Change", value: lpChangeValue, inline: true },
         { name: "Rank", value: rankValue, inline: true }
     );
-
-    const unitsSummary = await formatUnitsSummary(participant?.units);
+    
     const traitsSummary = await formatTraitsSummary(participant?.traits);
-
-    // if (unitsSummary) {
-    //     embed.addFields({ name: "Units", value: unitsSummary });
-    // }
+    
     if (traitsSummary) {
-        embed.addFields({ name: "Traits", value: traitsSummary, inline: true });
+        embed.addFields({ name: "Traits", value: traitsSummary, inline: false });
     }
 
     let files = [];
     try {
-        const unitImage = await buildUnitStripImage(participant?.units);
+        const unitImage = await buildUnitStripImage(participant?.units, {
+            tileSize: 74,
+            padding: 10,
+            columns: 4,
+        });
         if (unitImage) {
             files = [{ attachment: unitImage, name: "units.png" }];
             embed.setImage("attachment://units.png");

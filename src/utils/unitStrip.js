@@ -1,33 +1,66 @@
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { getTftChampionImageById, getTftItemImageById } from "../riot.js";
 
-const DEFAULT_TILE_SIZE = 64;
-const DEFAULT_PADDING = 6;
+const DEFAULT_TILE_SIZE = 76;
+const DEFAULT_PADDING = 10;
 const DEFAULT_MAX_UNITS = 10;
-const DEFAULT_COLUMNS = 5;
+const DEFAULT_COLUMNS = 4;
+
+const ITEM_ROW_RATIO = 0.3;
+const PORTRAIT_ROW_RATIO = 1 - ITEM_ROW_RATIO;
+
+function getFrameColor(unit) {
+    // tier means star level
+    // rarity seems to be a binary version of cost? 0, 1, 2, 4, 6, 7
+    const rarity = Number(unit?.rarity ?? 0);
+    if (rarity >= 6) return "#f18b2f";
+    if (rarity === 4) return "#9a4de0";
+    if (rarity === 2) return "#2f97e8";
+    if (rarity === 1) return "#3ca56a";
+    return "#656a74";
+}
 
 function normalizeUnits(units, maxUnits) {
     if (!Array.isArray(units)) return [];
     const sortedUnits = [...units].sort((a, b) => {
+        const costA = Number(a?.rarity ?? 0);
+        const costB = Number(b?.rarity ?? 0);
+        if (costB !== costA) return costB - costA; // highest cost first
+        
         const tierA = Number(a?.tier ?? 0);
         const tierB = Number(b?.tier ?? 0);
         if (tierB !== tierA) return tierB - tierA; // higher star tiers first
-        const costA = Number(a?.rarity ?? 0);
-        const costB = Number(b?.rarity ?? 0);
-        return costB - costA; // then higher rarity
+
+        const idA = String(a?.character_id ?? "");
+        const idB = String(b?.character_id ?? "");
+        return idA.localeCompare(idB); // deterministic L->R order on ties
     });
     return sortedUnits.slice(0, maxUnits);
 }
 
 function drawStarTier(ctx, stars, x, y) {
-    const count = Number(stars ?? 0);
+    const count = Math.min(3, Math.max(0, Number(stars ?? 0)));
     if (!Number.isFinite(count) || count <= 0) return;
-    const starText = "★".repeat(Math.min(3, count));
-    ctx.font = "bold 14px sans-serif";
-    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    ctx.fillRect(x, y, 40, 18);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(starText, x + 4, y + 14);
+
+    const markerRadius = 3;
+    const markerSpacing = 4;
+    const badgePaddingX = 5;
+    const badgePaddingY = 4;
+    const badgeHeight = markerRadius * 2 + badgePaddingY * 2;
+    const badgeWidth =
+        badgePaddingX * 2 + count * markerRadius * 2 + (count - 1) * markerSpacing;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+    ctx.fillRect(x, y, badgeWidth, badgeHeight);
+
+    const markerY = y + badgeHeight / 2;
+    const startX = x + badgePaddingX + markerRadius;
+
+    for (let i = 0; i < count; i += 1) {
+        const markerX = startX + i * (markerRadius * 2 + markerSpacing);
+        ctx.beginPath();
+        ctx.arc(markerX, markerY, markerRadius, 0, Math.PI * 2);
+        ctx.fill();
+    }
 }
 
 async function loadUnitImage(characterId) {
@@ -62,44 +95,75 @@ export async function buildUnitStripImage(units, options = {}) {
     if (normalized.length === 0) return null;
 
     const rows = Math.ceil(normalized.length / columns);
-    const width = columns * tileSize + (columns + 1) * padding;
-    const height = rows * tileSize + (rows + 1) * padding;
+    const cardWidth = tileSize;
+    const cardHeight = Math.floor(tileSize * 1.25);
+    const portraitHeight = Math.floor(cardHeight * PORTRAIT_ROW_RATIO);
+    const itemRowHeight = cardHeight - portraitHeight;
+
+    const width = columns * cardWidth + (columns + 1) * padding;
+    const height = rows * cardHeight + (rows + 1) * padding;
 
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "rgba(17, 17, 17, 0.85)";
     ctx.fillRect(0, 0, width, height);
 
-    await Promise.all(
-        normalized.map(async (unit, index) => {
-            const col = index % columns;
-            const row = Math.floor(index / columns);
-            const x = padding + col * (tileSize + padding);
-            const y = padding + row * (tileSize + padding);
-            const champImage = await loadUnitImage(unit?.character_id); 
-            const itemIds = Array.isArray(unit?.itemNames) && unit.itemNames.length > 0
-                ? unit.itemNames
-                : unit?.items;
-            const itemImages = [];
-            for (const itemId of itemIds || []) {
-                const itemImage = await loadItemImage(itemId);
-                if (itemImage) itemImages.push(itemImage);
+    for (const [index, unit] of normalized.entries()) {
+        const col = index % columns;
+        const row = Math.floor(index / columns);
+        const x = padding + col * (cardWidth + padding);
+        const y = padding + row * (cardHeight + padding);
+
+        const champImage = await loadUnitImage(unit?.character_id);
+        const itemIds = Array.isArray(unit?.itemNames) && unit.itemNames.length > 0
+            ? unit.itemNames
+            : unit?.items;
+
+        const itemImages = [];
+        for (const itemId of (itemIds || []).slice(0, 3)) {
+            const itemImage = await loadItemImage(itemId);
+            if (itemImage) itemImages.push(itemImage);
+        }
+
+        const frameColor = getFrameColor(unit);
+        // console.log(`[Unit Strip] Drawing unit ${unit?.character_id} at row ${row}, col ${col} with frame color ${frameColor}.`);
+
+        ctx.fillStyle = "#101116";
+        ctx.fillRect(x, y, cardWidth, cardHeight);
+
+        if (champImage) {
+            ctx.drawImage(champImage, x + 2, y + 2, cardWidth - 4, portraitHeight - 4);
+        } else {
+            ctx.fillStyle = "#2f2f3a";
+            ctx.fillRect(x + 2, y + 2, cardWidth - 4, portraitHeight - 4);
+        }
+
+        const itemRowY = y + portraitHeight;
+        ctx.fillStyle = "rgba(10, 12, 20, 0.95)";
+        ctx.fillRect(x + 1, itemRowY, cardWidth - 2, itemRowHeight - 1);
+
+        const slots = 3;
+        const slotWidth = cardWidth / slots;
+        const itemSize = Math.floor(Math.min(slotWidth, itemRowHeight) * 0.78);
+        for (let i = 0; i < slots; i += 1) {
+            const slotCenterX = x + slotWidth * i + slotWidth / 2;
+            const itemX = Math.floor(slotCenterX - itemSize / 2);
+            const itemY = Math.floor(itemRowY + (itemRowHeight - itemSize) / 2);
+
+            ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+            ctx.fillRect(itemX - 1, itemY - 1, itemSize + 2, itemSize + 2);
+
+            if (itemImages[i]) {
+                ctx.drawImage(itemImages[i], itemX, itemY, itemSize, itemSize);
             }
-            if (champImage) {
-                ctx.drawImage(champImage, x, y, tileSize, tileSize);
-                const itemSize = Math.floor(tileSize / 2.5);
-                itemImages.forEach((img, i) => {
-                    const itemX = x + tileSize - itemSize - 4;
-                    const itemY = y + tileSize - itemSize - 4 - i * (itemSize + 2);
-                    ctx.drawImage(img, itemX, itemY, itemSize, itemSize);
-                });
-            } else {
-                ctx.fillStyle = "#2f2f3a";
-                ctx.fillRect(x, y, tileSize, tileSize);
             }
-            drawStarTier(ctx, unit?.tier, x + 4, y + 4);
-        })
-    );
+
+        ctx.strokeStyle = frameColor;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 1.5, y + 1.5, cardWidth - 3, cardHeight - 3);
+
+        drawStarTier(ctx, unit?.tier, x + 4, y + 4);
+    }
 
     return canvas.toBuffer("image/png");
 }
