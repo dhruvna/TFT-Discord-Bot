@@ -7,12 +7,7 @@ import {
   hoursForMode,
 } from "../utils/recap.js";
 import { RANKED_QUEUE_CHOICES } from "../constants/queues.js";
-
-/* -------------------- Constants -------------------- */
-const MODE_CHOICES = [
-  { name: "Daily (last 24h)", value: "DAILY" },
-  { name: "Weekly (last 7d)", value: "WEEKLY" },
-];
+import { RECAP_MODE_CHOICES } from "../constants/recap.js";
 
 /* -------------------- Command -------------------- */
 export default {
@@ -27,7 +22,7 @@ export default {
         .addChoices(...RANKED_QUEUE_CHOICES)
     )
     .addStringOption((opt) =>
-      opt.setName("mode").setDescription("Daily or weekly recap").setRequired(false).addChoices(...MODE_CHOICES)
+      opt.setName("mode").setDescription("Daily or weekly recap").setRequired(false).addChoices(...RECAP_MODE_CHOICES)
     ),
 
     async execute(interaction) {

@@ -2,15 +2,8 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { loadDb, saveDb, getGuildRecapConfig, setGuildRecapConfig } from "../storage.js";
 import { RANKED_QUEUE_CHOICES, queueLabel } from "../constants/queues.js";
+import { RECAP_MODE_CHOICES, modeLabel } from "../constants/recap.js";
 
-const MODE_CHOICES = [
-  { name: "Daily (last 24h)", value: "DAILY" },
-  { name: "Weekly (last 7d)", value: "WEEKLY" },
-];
-
-function modeLabel(mode) {
-  return mode === "WEEKLY" ? "Weekly" : "Daily";
-}
 
 export default {
   data: new SlashCommandBuilder()
@@ -27,7 +20,7 @@ export default {
         .setName("mode")
         .setDescription("Daily or weekly recap content")
         .setRequired(false)
-        .addChoices(...MODE_CHOICES)
+        .addChoices(...RECAP_MODE_CHOICES)
     )
     .addStringOption((opt) =>
       opt
