@@ -226,9 +226,9 @@ export async function buildMatchResultEmbed({
     let files = [];
     try {
         const unitImage = await buildUnitStripImage(participant?.units, {
-            tileSize: 74,
+            tileSize: 72,
             padding: 10,
-            columns: 4,
+            columns: 6,
             traits: participant?.traits,
             traitIconSize: 30,
         });

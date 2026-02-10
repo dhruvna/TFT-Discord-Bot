@@ -4,12 +4,12 @@ import { getTftChampionImageById, getTftItemImageById, getTftTraitImageById } fr
 const DEFAULT_TILE_SIZE = 76;
 const DEFAULT_PADDING = 10;
 const DEFAULT_MAX_UNITS = 10;
-const DEFAULT_COLUMNS = 4;
+const DEFAULT_COLUMNS = 6;
 
 const ITEM_ROW_RATIO = 0.3;
 const PORTRAIT_ROW_RATIO = 1 - ITEM_ROW_RATIO;
 
-function getFrameColor(unit) {
+function getUnitTierColor(unit) {
     // tier means star level
     // rarity seems to be a binary version of cost? 0, 1, 2, 4, 6, 7 
     const rarity = Number(unit?.rarity ?? 0);
@@ -156,12 +156,20 @@ export async function buildUnitStripImage(units, options = {}) {
     const portraitHeight = Math.floor(cardHeight * PORTRAIT_ROW_RATIO);
     const itemRowHeight = cardHeight - portraitHeight;
 
-    const traitSectionHeight = normalizedTraits.length > 0
-        ? Math.ceil(normalizedTraits.length / columns) * traitIconSize + padding * 2
+    const traitColumns = normalizedTraits.length;
+    const unitGridWidth = columns * cardWidth + (columns + 1) * padding;
+    const traitRowWidth = traitColumns > 0
+        ? traitColumns * traitIconSize + (traitColumns + 1) * padding
         : 0;
 
-    const width = columns * cardWidth + (columns + 1) * padding;
+    const width = Math.max(unitGridWidth, traitRowWidth);
+    const traitSectionHeight = traitColumns > 0
+        ? traitIconSize + padding * 2
+        : 0;
     const height = rows * cardHeight + (rows + 1) * padding + traitSectionHeight;
+
+    const unitGridOffsetX = Math.floor((width - unitGridWidth) / 2);
+    const traitRowOffsetX = 0; // traits are left-aligned within their section
 
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext("2d");
@@ -174,24 +182,29 @@ export async function buildUnitStripImage(units, options = {}) {
     let unitGridStartY = 0;
 
     if (normalizedTraits.length > 0) {
+        ctx.fillStyle = "rgba(11, 13, 20, 0.92)";
         drawRoundedRect(ctx, padding / 2, padding / 2, width - padding, traitSectionHeight - padding / 2, 8);
         ctx.fill();
         
         for (const [index, trait] of normalizedTraits.entries()) {
-            const col = index % columns;
-            const row = Math.floor(index / columns);
-            const iconX = padding + col * (traitIconSize + padding);
-            const iconY = padding + row * (traitIconSize + padding);
+            const iconX = traitRowOffsetX + padding + index * (traitIconSize + padding);
+            const iconY = padding;
             const traitImage = await loadTraitImage(trait?.name);
 
-            const backgroundColor = getTraitTierColor(trait);
-            ctx.fillStyle = backgroundColor.replace(/rgb\((\d+), (\d+), (\d+)\)/, "rgba($1, $2, $3, 0.95)");
+            const traitBackground = getTraitTierColor(trait);
+            ctx.fillStyle = traitBackground;
+            // const border = getTraitTierColor(trait);
+            // ctx.fillStyle = "rgba(28, 30, 42, 0.95)";
             drawRoundedRect(ctx, iconX, iconY, traitIconSize, traitIconSize, 6);
             ctx.fill();
 
             if (traitImage) {
                 ctx.drawImage(traitImage, iconX + 2, iconY + 2, traitIconSize - 4, traitIconSize - 4);
             }
+
+            ctx.lineWidth = 2;
+            drawRoundedRect(ctx, iconX + 1, iconY + 1, traitIconSize - 2, traitIconSize - 2, 5);
+            ctx.stroke();
         }
         unitGridStartY = traitSectionHeight;
     }
@@ -199,7 +212,7 @@ export async function buildUnitStripImage(units, options = {}) {
     for (const [index, unit] of normalized.entries()) {
         const col = index % columns;
         const row = Math.floor(index / columns);
-        const x = padding + col * (cardWidth + padding);
+        const x = unitGridOffsetX + padding + col * (cardWidth + padding);
         const y = unitGridStartY + padding + row * (cardHeight + padding);
 
         const champImage = await loadUnitImage(unit?.character_id);
@@ -212,7 +225,7 @@ export async function buildUnitStripImage(units, options = {}) {
             const itemImage = await loadItemImage(itemId);
             if (itemImage) itemImages.push(itemImage);
         }
-        const frameColor = getFrameColor(unit);
+        const frameColor = getUnitTierColor(unit);
         ctx.fillStyle = "rgba(14, 16, 23, 0.96)";
         drawRoundedRect(ctx, x, y, cardWidth, cardHeight, 6);
         ctx.fill();
@@ -236,6 +249,7 @@ export async function buildUnitStripImage(units, options = {}) {
             const itemX = Math.floor(slotCenterX - itemSize / 2);
             const itemY = Math.floor(itemRowY + (itemRowHeight - itemSize) / 2);
 
+            ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
             ctx.fillRect(itemX - 1, itemY - 1, itemSize + 2, itemSize + 2);
 
             if (itemImages[i]) {
