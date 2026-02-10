@@ -92,6 +92,7 @@ let tftChampionImageById = null;
 let tftItemNameById = null;
 let tftItemImageById = null;
 let tftTraitNameById = null;
+let tftTraitImageById = null;
 
 // Normalize a tier string for Data Dragon's title-cased keys.
 // Example: "DIAMOND" -> "Diamond"
@@ -182,6 +183,23 @@ async function loadTFTTraits() {
     return tftTraitCache;
 }
 
+// Build a regalia thumbnail URL for a given queue type + tier.
+// Returns null when the tier does not map to a known asset.
+export async function getTftRegaliaThumbnailUrl({ queueType, tier }) {
+    const regalia = await loadTFTRegalia();
+    const version = await getLatestDDragonVersion();
+
+    const tierKey = toTitleCaseTier(tier);
+    if (!tierKey) return null;
+
+    // regalia.json is usually shaped like: regalia.data[queueType][tierKey].image.full
+    const entry = regalia?.data?.[queueType]?.[tierKey];
+    const file = entry?.image?.full;
+    if (!file) return null;
+
+    return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-regalia/${file}`;
+}
+
 async function getChampionNameIndex() {
     if (tftChampionNameById) return tftChampionNameById;
     const championData = await loadTFTChampions();
@@ -230,31 +248,21 @@ async function getTraitNameIndex() {
     if (tftTraitNameById) return tftTraitNameById;
     const traitData = await loadTFTTraits();
     const entries = Object.values(traitData?.data ?? {});
-    const map = new Map();
+    const traitNameMap = new Map();
+    const traitImageMap = new Map();
     for (const entry of entries) {
-        if (entry?.trait_id && entry?.name) {
-            map.set(entry.trait_id, entry.name);
+        if (entry?.id) {
+            if (entry?.name) {
+                traitNameMap.set(String(entry.id), entry.name);
+            }
+            if (entry?.image?.full) {
+                traitImageMap.set(String(entry.id), entry.image.full);
+            }
         }
     }
-    tftTraitNameById = map;
+    tftTraitNameById = traitNameMap;
+    tftTraitImageById = traitImageMap;
     return tftTraitNameById;
-}
-
-// Build a regalia thumbnail URL for a given queue type + tier.
-// Returns null when the tier does not map to a known asset.
-export async function getTftRegaliaThumbnailUrl({ queueType, tier }) {
-    const regalia = await loadTFTRegalia();
-    const version = await getLatestDDragonVersion();
-
-    const tierKey = toTitleCaseTier(tier);
-    if (!tierKey) return null;
-
-    // regalia.json is usually shaped like: regalia.data[queueType][tierKey].image.full
-    const entry = regalia?.data?.[queueType]?.[tierKey];
-    const file = entry?.image?.full;
-    if (!file) return null;
-
-    return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-regalia/${file}`;
 }
 
 export async function getTftChampionNameById(characterId) {
@@ -295,6 +303,18 @@ export async function getTftTraitNameById(traitId) {
     if (!traitId) return null;
     const map = await getTraitNameIndex();
     return map.get(traitId) ?? null;
+}
+
+export async function getTftTraitImageById(traitId) {
+    if (!traitId) return null;
+    if (!tftTraitImageById) {
+        await getTraitNameIndex(); // loads both name and image maps
+    }
+    const version = await getLatestDDragonVersion();
+    const file = tftTraitImageById?.get(traitId);
+    if (!file) return null;
+    const url = `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-trait/${file}`;
+    return url;
 }
 
 // Build a champion thumbnail URL from a champion id.

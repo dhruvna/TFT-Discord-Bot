@@ -222,12 +222,6 @@ export async function buildMatchResultEmbed({
         { name: "LP Change", value: lpChangeValue, inline: true },
         { name: "Rank", value: rankValue, inline: true }
     );
-    
-    const traitsSummary = await formatTraitsSummary(participant?.traits);
-    
-    if (traitsSummary) {
-        embed.addFields({ name: "Traits", value: traitsSummary, inline: false });
-    }
 
     let files = [];
     try {
@@ -235,6 +229,8 @@ export async function buildMatchResultEmbed({
             tileSize: 74,
             padding: 10,
             columns: 4,
+            traits: participant?.traits,
+            traitIconSize: 30,
         });
         if (unitImage) {
             files = [{ attachment: unitImage, name: "units.png" }];

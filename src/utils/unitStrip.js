@@ -1,5 +1,5 @@
 import { createCanvas, loadImage } from "@napi-rs/canvas";
-import { getTftChampionImageById, getTftItemImageById } from "../riot.js";
+import { getTftChampionImageById, getTftItemImageById, getTftTraitImageById } from "../riot.js";
 
 const DEFAULT_TILE_SIZE = 76;
 const DEFAULT_PADDING = 10;
@@ -11,7 +11,7 @@ const PORTRAIT_ROW_RATIO = 1 - ITEM_ROW_RATIO;
 
 function getFrameColor(unit) {
     // tier means star level
-    // rarity seems to be a binary version of cost? 0, 1, 2, 4, 6, 7
+    // rarity seems to be a binary version of cost? 0, 1, 2, 4, 6, 7 
     const rarity = Number(unit?.rarity ?? 0);
     if (rarity >= 6) return "#f18b2f";
     if (rarity === 4) return "#9a4de0";
@@ -36,6 +36,24 @@ function normalizeUnits(units, maxUnits) {
         return idA.localeCompare(idB); // deterministic L->R order on ties
     });
     return sortedUnits.slice(0, maxUnits);
+}
+
+function normalizeTraits(traits, maxTraits = 8) {
+    if (!Array.isArray(traits)) return [];
+    const activeTraits = traits
+        .filter((trait) => Number(trait?.tier_current ?? 0) > 0)
+        .sort((a, b) => {
+            const tierA = Number(a?.tier_current ?? 0);
+            const tierB = Number(b?.tier_current ?? 0);
+            if (tierB !== tierA) return tierB - tierA;
+            const styleA = Number(a?.style ?? 0);
+            const styleB = Number(b?.style ?? 0);
+            if (styleB !== styleA) return styleB - styleA;
+            const nameA = String(a?.name ?? "");
+            const nameB = String(b?.name ?? "");
+            return nameA.localeCompare(nameB);
+        });
+    return activeTraits.slice(0, maxTraits);
 }
 
 function drawStarTier(ctx, stars, x, y) {
@@ -65,7 +83,6 @@ function drawStarTier(ctx, stars, x, y) {
 
 async function loadUnitImage(characterId) {
     const url = await getTftChampionImageById(characterId);
-    // console.log(`[Unit Strip] Loading image for character ID ${characterId} from URL: ${url}`);
     if (!url) return null;
     const res = await fetch(url);
     if (!res.ok) return null;
@@ -75,12 +92,48 @@ async function loadUnitImage(characterId) {
 
 async function loadItemImage(itemId) {
     const url = await getTftItemImageById(itemId);
-    // console.log(`[Unit Strip] Loading image for item ID ${itemId} from URL: ${url}`);
     if (!url) return null;
     const res = await fetch(url);
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
     return loadImage(buffer);
+}
+
+async function loadTraitImage(traitId) {
+    const url = await getTftTraitImageById(traitId);
+    if (!url) return null;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    return loadImage(buffer);
+}
+
+function getTraitTierColor(trait) {
+    // style:
+    // 0 = gray (no active bonus)
+    // 1 = bronze 
+    // 2 = silver
+    // 3 = UNIQUE
+    // 4 = gold  
+    // 5 = prismatic
+    const style = Number(trait?.style ?? 0);
+    if (style >= 5) return "#c4fdc9";
+    if (style === 4) return "#DBC66F";
+    if (style === 3) return "#FEAF76";
+    if (style === 2) return "#ACC5CA";
+    if (style === 1) return "#CD7B46";
+    return "#7b808e"; 
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + width, y, x + width, y + height, r);
+    ctx.arcTo(x + width, y + height, x, y + height, r);
+    ctx.arcTo(x, y + height, x, y, r);
+    ctx.arcTo(x, y, x + width, y, r);
+    ctx.closePath();
 }
 
 export async function buildUnitStripImage(units, options = {}) {
@@ -89,9 +142,12 @@ export async function buildUnitStripImage(units, options = {}) {
         padding = DEFAULT_PADDING,
         maxUnits = DEFAULT_MAX_UNITS,
         columns = DEFAULT_COLUMNS,
+        traits = [],
+        traitIconSize = 30,
     } = options;
 
     const normalized = normalizeUnits(units, maxUnits);
+    const normalizedTraits = normalizeTraits(traits);
     if (normalized.length === 0) return null;
 
     const rows = Math.ceil(normalized.length / columns);
@@ -100,19 +156,51 @@ export async function buildUnitStripImage(units, options = {}) {
     const portraitHeight = Math.floor(cardHeight * PORTRAIT_ROW_RATIO);
     const itemRowHeight = cardHeight - portraitHeight;
 
+    const traitSectionHeight = normalizedTraits.length > 0
+        ? Math.ceil(normalizedTraits.length / columns) * traitIconSize + padding * 2
+        : 0;
+
     const width = columns * cardWidth + (columns + 1) * padding;
-    const height = rows * cardHeight + (rows + 1) * padding;
+    const height = rows * cardHeight + (rows + 1) * padding + traitSectionHeight;
 
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "rgba(17, 17, 17, 0.85)";
+    const backgroundGradient = ctx.createLinearGradient(0, 0, 0, height);
+    backgroundGradient.addColorStop(0, "rgba(15, 17, 26, 0.92)");
+    backgroundGradient.addColorStop(1, "rgba(8, 10, 15, 0.92)");
+    ctx.fillStyle = backgroundGradient;
     ctx.fillRect(0, 0, width, height);
+
+    let unitGridStartY = 0;
+
+    if (normalizedTraits.length > 0) {
+        drawRoundedRect(ctx, padding / 2, padding / 2, width - padding, traitSectionHeight - padding / 2, 8);
+        ctx.fill();
+        
+        for (const [index, trait] of normalizedTraits.entries()) {
+            const col = index % columns;
+            const row = Math.floor(index / columns);
+            const iconX = padding + col * (traitIconSize + padding);
+            const iconY = padding + row * (traitIconSize + padding);
+            const traitImage = await loadTraitImage(trait?.name);
+
+            const backgroundColor = getTraitTierColor(trait);
+            ctx.fillStyle = backgroundColor.replace(/rgb\((\d+), (\d+), (\d+)\)/, "rgba($1, $2, $3, 0.95)");
+            drawRoundedRect(ctx, iconX, iconY, traitIconSize, traitIconSize, 6);
+            ctx.fill();
+
+            if (traitImage) {
+                ctx.drawImage(traitImage, iconX + 2, iconY + 2, traitIconSize - 4, traitIconSize - 4);
+            }
+        }
+        unitGridStartY = traitSectionHeight;
+    }
 
     for (const [index, unit] of normalized.entries()) {
         const col = index % columns;
         const row = Math.floor(index / columns);
         const x = padding + col * (cardWidth + padding);
-        const y = padding + row * (cardHeight + padding);
+        const y = unitGridStartY + padding + row * (cardHeight + padding);
 
         const champImage = await loadUnitImage(unit?.character_id);
         const itemIds = Array.isArray(unit?.itemNames) && unit.itemNames.length > 0
@@ -124,18 +212,16 @@ export async function buildUnitStripImage(units, options = {}) {
             const itemImage = await loadItemImage(itemId);
             if (itemImage) itemImages.push(itemImage);
         }
-
         const frameColor = getFrameColor(unit);
-        // console.log(`[Unit Strip] Drawing unit ${unit?.character_id} at row ${row}, col ${col} with frame color ${frameColor}.`);
-
-        ctx.fillStyle = "#101116";
-        ctx.fillRect(x, y, cardWidth, cardHeight);
+        ctx.fillStyle = "rgba(14, 16, 23, 0.96)";
+        drawRoundedRect(ctx, x, y, cardWidth, cardHeight, 6);
+        ctx.fill();
 
         if (champImage) {
-            ctx.drawImage(champImage, x + 2, y + 2, cardWidth - 4, portraitHeight - 4);
+            ctx.drawImage(champImage, x + 3, y + 3, cardWidth - 6, portraitHeight - 5);
         } else {
             ctx.fillStyle = "#2f2f3a";
-            ctx.fillRect(x + 2, y + 2, cardWidth - 4, portraitHeight - 4);
+            ctx.fillRect(x + 3, y + 3, cardWidth - 6, portraitHeight - 5);
         }
 
         const itemRowY = y + portraitHeight;
@@ -150,17 +236,17 @@ export async function buildUnitStripImage(units, options = {}) {
             const itemX = Math.floor(slotCenterX - itemSize / 2);
             const itemY = Math.floor(itemRowY + (itemRowHeight - itemSize) / 2);
 
-            ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
             ctx.fillRect(itemX - 1, itemY - 1, itemSize + 2, itemSize + 2);
 
             if (itemImages[i]) {
                 ctx.drawImage(itemImages[i], itemX, itemY, itemSize, itemSize);
             }
-            }
+        }
 
         ctx.strokeStyle = frameColor;
         ctx.lineWidth = 3;
-        ctx.strokeRect(x + 1.5, y + 1.5, cardWidth - 3, cardHeight - 3);
+        drawRoundedRect(ctx, x + 1.5, y + 1.5, cardWidth - 3, cardHeight - 3, 5);
+        ctx.stroke();
 
         drawStarTier(ctx, unit?.tier, x + 4, y + 4);
     }
