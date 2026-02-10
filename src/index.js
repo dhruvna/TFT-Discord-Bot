@@ -2,17 +2,13 @@
 // We group imports up front so the rest of the file reads as a narrative:
 // 1) framework primitives, 2) Node utilities, 3) local services/helpers.
 import { Client, GatewayIntentBits, Collection } from 'discord.js';
-
-import fs from 'node:fs';
-import path from 'node:path';
-import url from 'node:url';
-
 import { loadDb } from './storage.js';
 import { startRecapAutoposter } from './services/recapAutoPoster.js';
 import { startMatchPoller } from './services/matchPoller.js';
 import config from './config.js';
 import { QUEUE_TYPES } from './constants/queues.js';
 import { getRankSnapshotForQueue } from './utils/rankSnapshot.js';
+import { loadCommands} from './commands/loadCommands.js';
 
 // === Configuration ===
 // Grab the token once so the login call is simple and we avoid reading config
@@ -27,35 +23,20 @@ const client = new Client({
 });
 
 // === Command discovery ===
-// Determine the file-system location of this module. We need this to resolve
-// the commands folder relative to this file, regardless of how the app is run.
-const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-
 // Store commands in a collection for quick lookup by name at runtime.
 client.commands = new Collection();
 
-// Define and read the commands directory, then dynamically import each command.
-// We filter to `.js` so this also ignores map files, temp files, etc.
-const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs
-    .readdirSync(commandsPath)
-    .filter((file) => file.endsWith('.js'));
-
-// For each command file, import it and add it to the commands collection.
-// This keeps new command modules discoverable without manual registration.
-for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const module = await import(url.pathToFileURL(filePath));
-    const command = module.default;
-    // Validate shape: commands must expose `data` (for Discord) and `execute`.
-    // Missing either is a developer error, so we warn and skip to keep the bot running.
-
-    if (!command?.data || !command?.execute) {
+// Discover and import commands from `src/commands`. Invalid command modules are
+// warned and skipped so the bot can continue starting up.
+const commands = await loadCommands({
+    onInvalid(file) {
         console.warn(` Command ${file} is missing data or execute()`);
-        continue;
-    }
-    // Cache the command by name for fast lookups on interaction.
-    client.commands.set(command.data.name, command);
+    },
+});
+
+// Cache each command by name for fast lookups on interaction.
+for (const command of commands) {
+    client.commands.set(command.name, command);
 }
 
 // === Startup hook ===
