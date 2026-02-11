@@ -195,10 +195,18 @@ export async function startMatchPoller(client) {
     const riotLimiter = createRiotRateLimiter({ perSecond: 20, perTwoMinutes: 100 });
     const rankRefreshMinutes = config.rankRefreshIntervalMinutes;
     const rankRefreshMs = rankRefreshMinutes * 60 * 1000;
+    let isTickRunning = false;
 
     // One polling iteration. Split out to make the setInterval handler simple.
     const tick = async () => {
-        const fallbackChannelId = config.discordChannelId;
+        if (isTickRunning) {
+            console.warn('[match-poller] skipping tick because previous tick is still running');
+            return;
+        }
+
+        isTickRunning = true;
+        try {
+            const fallbackChannelId = config.discordChannelId;
         const channelCache = new Map(); // channelId -> channel (cache per tick)
 
         const db = await loadDb();
@@ -372,6 +380,9 @@ export async function startMatchPoller(client) {
             }
         }
         await saveDbIfChanged(db, didChange);
+        } finally {
+            isTickRunning = false;
+        }        
     };
 
     // Run immediately, then schedule future ticks.

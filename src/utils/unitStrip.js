@@ -12,6 +12,7 @@ const PORTRAIT_ROW_RATIO = 1 - ITEM_ROW_RATIO;
 const STAR_ROW_HEIGHT = 16;
 const STAR_ICON_SIZE = 11;
 const STAR_ICON_SPACING = 3;
+const IMAGE_CACHE_MAX_SIZE = 512;
 
 const COST_STAR_PATHS = {
     1: "assets/1CostStar.svg",
@@ -22,6 +23,50 @@ const COST_STAR_PATHS = {
 };
 
 const starAssetCache = new Map();
+const championImageCache = new Map();
+const itemImageCache = new Map();
+const traitImageCache = new Map();
+
+function touchCacheEntry(cache, key) {
+    const value = cache.get(key);
+    if (value === undefined) return;
+    cache.delete(key);
+    cache.set(key, value);
+}
+
+function setWithLimit(cache, key, value, maxSize = IMAGE_CACHE_MAX_SIZE) {
+    cache.set(key, value);
+    while (cache.size > maxSize) {
+        const oldestKey = cache.keys().next().value;
+        if (oldestKey === undefined) break;
+        cache.delete(oldestKey);
+    }
+}
+
+function memoizeImageLoad(cache, key, loader) {
+    if (!key) return loader();
+
+    if (cache.has(key)) {
+        touchCacheEntry(cache, key);
+        return cache.get(key);
+    }
+
+    const imagePromise = loader().catch(() => null);
+    setWithLimit(cache, key, imagePromise);
+    return imagePromise;
+}
+
+async function fetchImageFromUrl(url) {
+    if (!url) return null;
+    try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const buffer = Buffer.from(await res.arrayBuffer());
+        return await loadImage(buffer);
+    } catch {
+        return null;
+    }
+}
 
 function normalizeUnitCost(rarity) {
     const value = Number(rarity ?? 0);
@@ -114,30 +159,30 @@ function drawTierStars(ctx, starImage, stars, x, y, width) {
 }
 
 async function loadUnitImage(characterId) {
-    const url = await getTftChampionImageById(characterId);
-    if (!url) return characterId ? null : undefined; // return undefined if no ID provided, null if ID provided but no image found
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const buffer = Buffer.from(await res.arrayBuffer());
-    return loadImage(buffer);
+    if (!characterId) return undefined;
+
+    return memoizeImageLoad(championImageCache, characterId, async () => {
+        const url = await getTftChampionImageById(characterId);
+        return fetchImageFromUrl(url);
+    });
 }
 
 async function loadItemImage(itemId) {
-    const url = await getTftItemImageById(itemId);
-    if (!url) return null;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const buffer = Buffer.from(await res.arrayBuffer());
-    return loadImage(buffer);
+    if (!itemId) return null;
+
+    return memoizeImageLoad(itemImageCache, itemId, async () => {
+        const url = await getTftItemImageById(itemId);
+        return fetchImageFromUrl(url);
+    });
 }
 
 async function loadTraitImage(traitId) {
-    const url = await getTftTraitImageById(traitId);
-    if (!url) return null;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const buffer = Buffer.from(await res.arrayBuffer());
-    return loadImage(buffer);
+    if (!traitId) return null;
+
+    return memoizeImageLoad(traitImageCache, traitId, async () => {
+        const url = await getTftTraitImageById(traitId);
+        return fetchImageFromUrl(url);
+    });
 }
 
 function getTraitTierColor(trait) {
