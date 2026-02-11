@@ -324,13 +324,14 @@ export async function buildUnitStripImage(units, options = {}) {
             if (itemImage) itemImages.push(itemImage);
         }
         const frameColor = getUnitTierColor(unit);
-        ctx.fillStyle = "rgba(14, 16, 23, 0.96)";
-        drawRoundedRect(ctx, x, y, cardWidth, cardHeight, 6);
-        ctx.fill();
 
         drawTierStars(ctx, starImage, unit?.tier, x, y, cardWidth);
 
         const portraitY = y + STAR_ROW_HEIGHT;
+        ctx.fillStyle = "rgba(14, 16, 23, 0.96)";
+        drawRoundedRect(ctx, x, portraitY, cardWidth, portraitHeight, 6);
+        ctx.fill();
+
         if (champImage) {
             ctx.drawImage(champImage, x + 3, portraitY + 3, cardWidth - 6, portraitHeight - 5);
         } else {
@@ -346,28 +347,22 @@ export async function buildUnitStripImage(units, options = {}) {
         }
 
         const itemRowY = portraitY + portraitHeight;
-        ctx.fillStyle = "rgba(10, 12, 20, 0.95)";
-        ctx.fillRect(x + 1, itemRowY, cardWidth - 2, itemRowHeight - 1);
-
-        const slots = 3;
-        const slotWidth = cardWidth / slots;
-        const itemSize = Math.floor(Math.min(slotWidth, itemRowHeight) * 0.78);
-        for (let i = 0; i < slots; i += 1) {
-            const slotCenterX = x + slotWidth * i + slotWidth / 2;
-            const itemX = Math.floor(slotCenterX - itemSize / 2);
+        const visibleItemCount = itemImages.length;
+        if (visibleItemCount > 0) {
+            const itemSize = Math.floor(Math.min(cardWidth / 3, itemRowHeight) * 0.86);
+            const totalItemWidth = visibleItemCount * itemSize;
+            const itemStartX = Math.floor(x + (cardWidth - totalItemWidth) / 2);
             const itemY = Math.floor(itemRowY + (itemRowHeight - itemSize) / 2);
 
-            ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
-            ctx.fillRect(itemX - 1, itemY - 1, itemSize + 2, itemSize + 2);
-
-            if (itemImages[i]) {
+            for (let i = 0; i < visibleItemCount; i += 1) {
+                const itemX = itemStartX + i * itemSize;
                 ctx.drawImage(itemImages[i], itemX, itemY, itemSize, itemSize);
             }
         }
 
         ctx.strokeStyle = frameColor;
         ctx.lineWidth = 3;
-        drawRoundedRect(ctx, x + 1.5, y + 1.5, cardWidth - 3, cardHeight - 3, 5);
+        drawRoundedRect(ctx, x + 1.5, portraitY + 1.5, cardWidth - 3, portraitHeight - 3, 5);
         ctx.stroke();
     }
 
