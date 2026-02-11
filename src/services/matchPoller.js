@@ -207,71 +207,71 @@ export async function startMatchPoller(client) {
         isTickRunning = true;
         try {
             const fallbackChannelId = config.discordChannelId;
-        const channelCache = new Map(); // channelId -> channel (cache per tick)
+            const channelCache = new Map(); // channelId -> channel (cache per tick)
 
-        const db = await loadDb();
-        let didChange = false;
-        const guildIds = Object.keys(db);
-        if (guildIds.length === 0) return;
-    
-        const totalAccounts = guildIds.reduce((sum, guildId) => {
-            const accounts = db[guildId]?.accounts ?? [];
-            return sum + accounts.length;
-        }, 0);
-
-        const intervalMs = intervalSeconds * 1000;
-        const spreadDelayMs = totalAccounts > 0 ? Math.ceil(intervalMs / totalAccounts) : 0;
-        const perAccountDelayMs = Math.max(basePerAccountDelayMs, spreadDelayMs);
+            const db = await loadDb();
+            let didChange = false;
+            const guildIds = Object.keys(db);
+            if (guildIds.length === 0) return;
         
-        console.log(
-            `[match-poller] tick guilds=${guildIds.length} interval=${intervalSeconds}s totalAccounts=${totalAccounts} perAccountDelay=${perAccountDelayMs}ms`
-        );
+            const totalAccounts = guildIds.reduce((sum, guildId) => {
+                const accounts = db[guildId]?.accounts ?? [];
+                return sum + accounts.length;
+            }, 0);
 
-        for (const guildId of guildIds) {
-            const guild = db[guildId];
-            const accounts = guild?.accounts ?? [];
-            const channelIdForGuild = guild?.channelId || fallbackChannelId;
+            const intervalMs = intervalSeconds * 1000;
+            const spreadDelayMs = totalAccounts > 0 ? Math.ceil(intervalMs / totalAccounts) : 0;
+            const perAccountDelayMs = Math.max(basePerAccountDelayMs, spreadDelayMs);
+            
+            console.log(
+                `[match-poller] tick guilds=${guildIds.length} interval=${intervalSeconds}s totalAccounts=${totalAccounts} perAccountDelay=${perAccountDelayMs}ms`
+            );
 
-            let channel = null;
-            if (channelIdForGuild) {
-                if (channelCache.has(channelIdForGuild)) {
-                    channel = channelCache.get(channelIdForGuild);
-                } else {
-                    // Cache the channel per tick to avoid repeated fetch calls.
-                    try {
-                        channel = await client.channels.fetch(channelIdForGuild);
-                    } catch (err) {
-                        console.error(`Error fetching channel ${channelIdForGuild} for guild ${guildId}:`, err);
-                        channel = null;
-                    }
-                    channelCache.set(channelIdForGuild, channel);
-                }
-            }
+            for (const guildId of guildIds) {
+                const guild = db[guildId];
+                const accounts = guild?.accounts ?? [];
+                const channelIdForGuild = guild?.channelId || fallbackChannelId;
 
-            for (const account of accounts) {
-                if (!account?.puuid || !account?.regional || !account?.platform || !account?.key) {
-                    await sleep(perAccountDelayMs);
-                    continue;
-                }
-                
-                try {
-                    const now = Date.now();
-                    if (shouldRefreshRank(account, now, rankRefreshMs)) {
+                let channel = null;
+                if (channelIdForGuild) {
+                    if (channelCache.has(channelIdForGuild)) {
+                        channel = channelCache.get(channelIdForGuild);
+                    } else {
+                        // Cache the channel per tick to avoid repeated fetch calls.
                         try {
-                            const refreshed = await refreshRankSnapshot({ riotLimiter, account });
-                            
-                            await upsertGuildAccount(db, guildId, {
-                                ...account,
-                                lastRankByQueue: refreshed,
-                            });
-                            didChange = true;
+                            channel = await client.channels.fetch(channelIdForGuild);
                         } catch (err) {
-                            console.error(
-                                `Error refreshing rank for account ${account.key} (guild=${guildId}):`,
-                                err
-                            );
+                            console.error(`Error fetching channel ${channelIdForGuild} for guild ${guildId}:`, err);
+                            channel = null;
                         }
+                        channelCache.set(channelIdForGuild, channel);
                     }
+                }
+
+                for (const account of accounts) {
+                    if (!account?.puuid || !account?.regional || !account?.platform || !account?.key) {
+                        await sleep(perAccountDelayMs);
+                        continue;
+                    }
+                    
+                    try {
+                        const now = Date.now();
+                        if (shouldRefreshRank(account, now, rankRefreshMs)) {
+                            try {
+                                const refreshed = await refreshRankSnapshot({ riotLimiter, account });
+                                
+                                await upsertGuildAccount(db, guildId, {
+                                    ...account,
+                                    lastRankByQueue: refreshed,
+                                });
+                                didChange = true;
+                            } catch (err) {
+                                console.error(
+                                    `Error refreshing rank for account ${account.key} (guild=${guildId}):`,
+                                    err
+                                );
+                            }
+                        }
 
                     // Fetch unseen match IDs, respecting the backfill limit.
                     const unseenMatchIds = await detectUnseenMatchIds({

@@ -8,7 +8,7 @@ import { startMatchPoller } from './services/matchPoller.js';
 import config from './config.js';
 import { QUEUE_TYPES } from './constants/queues.js';
 import { getRankSnapshotForQueue } from './utils/rankSnapshot.js';
-import { loadCommands} from './commands/loadCommands.js';
+import { loadCommands } from './commands/loadCommands.js';
 
 // === Configuration ===
 // Grab the token once so the login call is simple and we avoid reading config

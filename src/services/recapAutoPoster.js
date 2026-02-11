@@ -49,7 +49,7 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute} = {})
 
     // One polling iteration. Splitting this out keeps the interval handler small.
     const tick = async () => {
-        const fallbackChannelId = process.env.DISCORD_CHANNEL_ID || null;
+        const fallbackChannelId = config.discordChannelId;
 
         const db = await loadDb();
         let didChange = false;

@@ -46,13 +46,29 @@ export class CompositeRateLimiter {
     this.buckets = buckets;
   }
 
+  canConsume(count = 1, now = Date.now()) {
+    return this.buckets.every((bucket) => {
+      bucket.refill(now);
+      return bucket.tokens >= count;
+    });
+  }
+
+  consume(count = 1) {
+    for (const bucket of this.buckets) {
+      bucket.tokens -= count;
+    }
+  }
+
   // Wait until all buckets can consume the requested count.
   async acquire(count = 1) {
     while (true) {
       const now = Date.now();
-      const canConsume = this.buckets.every((bucket) => bucket.tryConsume(count, now));
-      if (canConsume) return;
-
+      const canConsume = this.canConsume(count, now);
+      if (canConsume) {
+        this.consume(count);
+        return;
+      }
+      
       const waitMs = Math.max(
         1,
         ...this.buckets.map((bucket) => bucket.waitMsForToken)
