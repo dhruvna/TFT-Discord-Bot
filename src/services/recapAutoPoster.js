@@ -47,7 +47,6 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute, pollI
     const POLL_INTERVAL_MS = pollIntervalMs ?? 5 * 60 * 1000;
     // One polling iteration. Splitting this out keeps the interval handler small.
     const tick = async () => {
-        const fallbackChannelId = config.discordChannelId;
 
         const db = await loadDb();
         const guildIds = getKnownGuildIds(db);
@@ -88,7 +87,7 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute, pollI
 
             if (!shouldFire) continue;
 
-            const channelId = guild?.channelId || fallbackChannelId;
+            const channelId = guild?.channelId;
             if (!channelId) continue;
 
             let channel = null;

@@ -25,7 +25,8 @@ export async function loadCommands({ onInvalid } = {}) {
     // Collect command JSON payloads by reading the commands directory.
     const commandFiles = fs
         .readdirSync(commandsPath)
-        .filter((file) => file.endsWith('.js') && file !== 'loadCommands.js');
+        .filter((file) => file.endsWith('.js') && file !== 'loadCommands.js')
+        .sort((a, b) => a.localeCompare(b));
     
     const commands = [];
 

@@ -11,9 +11,6 @@ import { REGION_CHOICES } from '../constants/regions.js';
 
 import {
     makeAccountKey,
-    loadDb,
-    saveDb,
-    upsertGuildAccount,
     upsertGuildAccountInStore,
 } from '../storage.js';
 import { RANKED_QUEUES } from "../constants/queues.js";

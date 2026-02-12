@@ -206,7 +206,6 @@ export async function startMatchPoller(client) {
 
         isTickRunning = true;
         try {
-            const fallbackChannelId = config.discordChannelId;
             const channelCache = new Map(); // channelId -> channel (cache per tick)
 
             const db = await loadDb();
@@ -229,7 +228,7 @@ export async function startMatchPoller(client) {
             for (const guildId of guildIds) {
                 const guild = db[guildId];
                 const accounts = guild?.accounts ?? [];
-                const channelIdForGuild = guild?.channelId || fallbackChannelId;
+                const channelIdForGuild = guild?.channelId ;
 
                 let channel = null;
                 if (channelIdForGuild) {

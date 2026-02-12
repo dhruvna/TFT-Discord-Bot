@@ -19,7 +19,6 @@ export default {
     .addBooleanOption((opt) =>
       opt
         .setName("enabled")
-        .setDescription("Enable/disable autopost")
         .setDescription("Enable/disable autopost (required unless `status` is true).")
         .setRequired(false)
     )
