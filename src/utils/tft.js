@@ -3,10 +3,7 @@
 
 import { EmbedBuilder } from "discord.js";
 import { 
-    getTFTMatchUrl, 
-    getTftChampionNameById,
-    getTftItemNameById,
-    getTftTraitNameById,
+    getTFTMatchUrl,
     getTftRegaliaThumbnailUrl,
 } from "../riot.js";
 import { buildUnitStripImage } from "./unitStrip.js";
@@ -91,12 +88,6 @@ export function placementToOrdinal(placement) {
 // Wrap queue label helper for semantic clarity at call sites.
 export function labelForQueueType(queueType) {
     return queueLabel(queueType);
-}
-
-function formatStarTier(stars) {
-    const count = Number(stars ?? 0);
-    if (!Number.isFinite(count) || count <= 0) return "";
-    return "★".repeat(Math.min(3, count));
 }
 
 // === Embed construction ===

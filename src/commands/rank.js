@@ -35,7 +35,7 @@ async function buildQueueEmbed({account, label, entry}) {
     addQueueSection(fields, label, entry);
 
     fields.push({ name: "Last updated", value: formatLastUpdated(entry.lastUpdatedAt), inline: false });
-    const profileUrl = getLeagueOfGraphsUrl({ gameName: account.gameName, tagLine: account.tagLine });
+    const profileUrl = getLeagueOfGraphsUrl({ region: account.region, gameName: account.gameName, tagLine: account.tagLine });
 
     const embed = new EmbedBuilder()
         .setTitle(`${account.gameName}#${account.tagLine} — ${label}`)
