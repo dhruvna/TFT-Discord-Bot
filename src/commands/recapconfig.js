@@ -2,17 +2,20 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { loadDb, saveDb, getGuildRecapConfig, setGuildRecapConfig } from "../storage.js";
 import { RANKED_QUEUE_CHOICES, queueLabel } from "../constants/queues.js";
-import { RECAP_MODE_CHOICES } from "../constants/recap.js";
+import { RECAP_MODE_CHOICES, modeLabel } from "../constants/recap.js";
 
 export default {
   data: new SlashCommandBuilder()
     .setName("recapconfig")
-    .setDescription("Configure the automated recap post (posts daily at 9:00 AM).")
+    .setDescription(
+      "Update recap autopost settings (`enabled` required), or use `status:true` to view current settings."
+    )
     .addBooleanOption((opt) =>
       opt
         .setName("enabled")
         .setDescription("Enable/disable autopost")
-        .setRequired(true)
+        .setDescription("Enable/disable autopost (required unless `status` is true).")
+        .setRequired(false)
     )
     .addStringOption((opt) =>
       opt
@@ -31,7 +34,7 @@ export default {
     .addBooleanOption((opt) =>
       opt
         .setName("status")
-        .setDescription("Show current recap autopost settings (ignores other options).")
+        .setDescription("Show current recap autopost settings and ignore all other options.")
         .setRequired(false)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
@@ -67,9 +70,17 @@ export default {
       return;
     }
 
-    const enabled = interaction.options.getBoolean("enabled"); // required
+    const enabled = interaction.options.getBoolean("enabled"); // required unless status=true
     const mode = interaction.options.getString("mode"); // optional
     const queue = interaction.options.getString("queue"); // optional
+
+    if (enabled === null) {
+      await interaction.reply({
+        content: "`enabled` is required unless you set `status` to `true`.",
+        ephemeral: true,
+      });
+      return;
+    }
 
     const patch = {
       enabled,

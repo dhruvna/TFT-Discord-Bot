@@ -129,7 +129,7 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute} = {})
         await saveDbIfChanged(db, didChange);
     };
 
-    // Run immediately and then every minute to catch the scheduled time.
+    // Run immediately and then every 5 minutes to catch the scheduled time.
     await tick();
-    setInterval(() => tick().catch((e) => console.error("Recap autopost tick failed:", e)), 60 * 1000);
+    setInterval(() => tick().catch((e) => console.error("Recap autopost tick failed:", e)), 5 * 60 * 1000);
 }

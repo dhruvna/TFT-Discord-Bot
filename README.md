@@ -168,9 +168,6 @@ The bot requires the following environment variables:
 - `RIOT_LOL_API_KEY`  
   Riot Games API key (LoL endpoints)
 
-- `DISCORD_CHANNEL_ID`  
-  Channel ID where automated match result embeds will be posted
-
 Optional:
 - `MATCH_POLL_INTERVAL_SECONDS` (default: 60)  
   How often to poll for new matches

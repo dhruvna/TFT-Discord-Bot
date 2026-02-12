@@ -3,7 +3,7 @@
 // the bot runtime so command registration can be run on demand.
 import { REST, Routes } from 'discord.js';
 import config from './config.js';
-import { loadCommands} from './commands/loadCommands.js';
+import { loadCommands } from './commands/loadCommands.js';
 
 // === Configuration ===
 // Pull required values from config once so we can validate early.
@@ -23,16 +23,9 @@ const commands = loadedCommands.map((command) => {
 });
 
 // === Registration ===
-// Use Discord's REST API to register guild-specific commands for faster iteration.
+// Register globally so commands work in every guild the bot joins.
 const rest = new REST({ version: '10' }).setToken(token);
 
-console.log('Registering slash commands (guild-only)...');
-
-const guildId = config.discordGuildId;
-
-await rest.put(
-    Routes.applicationGuildCommands(clientId, guildId),
-    { body: commands }
-);
-
-console.log('Guild slash command registration complete.');
+console.log('Registering slash commands (global)...');
+await rest.put(Routes.applicationCommands(clientId), { body: commands });
+console.log('Global slash command registration complete.');

@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
-import { getTFTRankByPuuid, getTftRegaliaThumbnailUrl, getLeagueOfGraphsUrl } from "../riot.js";
+import { getTftRegaliaThumbnailUrl, getLeagueOfGraphsUrl } from "../riot.js";
 import { QUEUE_TYPES, queueLabel } from "../constants/queues.js"
-import { getGuildAccountByKey } from "../storage.js";
+import { loadDb } from "../storage.js";
 import { respondWithAccountChoices } from "../utils/autocomplete.js";
 import { formatRankLine, formatWinrate } from "../utils/presentation.js";
 
@@ -22,10 +22,19 @@ function addQueueSection(fields, label, entry) {
     );
 }
 
+function formatLastUpdated(lastUpdatedAt) {
+    const millis = Number(lastUpdatedAt);
+    if (!Number.isFinite(millis) || millis <= 0) return "Unknown";
+
+    const unixSeconds = Math.floor(millis / 1000);
+    return `<t:${unixSeconds}:F> (<t:${unixSeconds}:R>)`;
+}
+
 async function buildQueueEmbed({account, label, entry}) {
     const fields = [];
     addQueueSection(fields, label, entry);
 
+    fields.push({ name: "Last updated", value: formatLastUpdated(entry.lastUpdatedAt), inline: false });
     const profileUrl = getLeagueOfGraphsUrl({ gameName: account.gameName, tagLine: account.tagLine });
 
     const embed = new EmbedBuilder()
@@ -42,7 +51,7 @@ async function buildQueueEmbed({account, label, entry}) {
 export default {
     data: new SlashCommandBuilder()
         .setName("rank")
-        .setDescription("Look up ranked info for a Riot ID")
+        .setDescription("TESTING 123Look up ranked info for a Riot ID")
         .addStringOption((opt) =>
             opt.setName('account').setDescription('Select a registered Riot ID').setRequired(true).setAutocomplete(true)
         ),
@@ -64,25 +73,28 @@ export default {
 
         // 3. Determine selected account
         const key = interaction.options.getString('account', true);
-        const stored = await getGuildAccountByKey(guildId, key);
+
+        const db = await loadDb();
+        const guild = db[guildId];
+        const accountIdx = guild?.accounts?.findIndex((a) => a.key === key) ?? -1;
+        const stored = accountIdx >= 0 ? guild.accounts[accountIdx] : null;
 
         if (!stored) {
             await interaction.editReply("The selected account is not registered in this server. Try registering again.");
             return;
         }
 
-        // 4. PUUID -> TFT Entries (Ranked/Double Up/etc)
-        let tftEntries;
-        try {
-            tftEntries = await getTFTRankByPuuid({ platform: stored.platform, puuid: stored.puuid });
-        } catch {
-            await interaction.editReply("Error fetching TFT rank data from Riot. Please try again later.");
-            return;
-        }
+        // 4. Pull out rank info for TFT queues
+        let rankByQueue = stored.lastRankByQueue ?? {};
 
         // 5. Pull out queues we care about
-        const rankedEntry = tftEntries.find(e => e.queueType === QUEUE_TYPES.RANKED_TFT);
-        const doubleUpEntry = tftEntries.find(e => e.queueType === QUEUE_TYPES.RANKED_TFT_DOUBLE_UP);
+        const rankedEntry = rankByQueue[QUEUE_TYPES.RANKED_TFT]
+            ? { ...rankByQueue[QUEUE_TYPES.RANKED_TFT], queueType: QUEUE_TYPES.RANKED_TFT }
+            : null;
+        const doubleUpEntry = rankByQueue[QUEUE_TYPES.RANKED_TFT_DOUBLE_UP]
+            ? { ...rankByQueue[QUEUE_TYPES.RANKED_TFT_DOUBLE_UP], queueType: QUEUE_TYPES.RANKED_TFT_DOUBLE_UP }
+            : null;
+
 
         // 6. Build embed fields
         const embeds = [];

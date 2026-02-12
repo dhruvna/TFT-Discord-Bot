@@ -304,7 +304,8 @@ export async function startMatchPoller(client) {
                         const meta = detectQueueMetaFromMatch(match);
                         const queueType = meta.queueType || QUEUE_TYPES.RANKED_TFT;
                         const isRanked = isRankedQueue(queueType);
-
+                        const normPlacement = normalizePlacement({ placement, queueType }); 
+                        
                         // Only refresh rank once, for the latest ranked match.
                         if (isMostRecent && isRanked) {
                             try {
@@ -316,20 +317,10 @@ export async function startMatchPoller(client) {
 
                         const deltas = computeRankSnapshotDeltas({ before, after });
                         
-                        if (!shouldAnnounceMatch({ announceQueues, queueType })) {
-                            console.log(
-                                `[match-poller] skipping announcement for guild=${guildId} account=${account.key} match=${matchId} queue=${queueType} (not in announceQueues)`
-                            );
-                            lastProcessedMatchId = matchId;
-                            continue;
-                        }
-                    
-                        const normPlacement = normalizePlacement({ placement, queueType }); 
-                        
                         const afterRank = isRanked && isMostRecent ? (after?.[queueType] ?? null) : null;
                         const delta = isRanked && isMostRecent ? (deltas?.[queueType] ?? 0) : 0;
                         
-                        // Capture recap data only for ranked queues.
+                        // Capture recap data independently of announcement filtering.
                         if (isRanked) {
                             const gameMs = match.info.game_datetime ?? Date.now();
                             recapEvents = buildRecapEvents({
@@ -342,6 +333,14 @@ export async function startMatchPoller(client) {
                             });
                         }
 
+                        if (!shouldAnnounceMatch({ announceQueues, queueType })) {
+                            console.log(
+                                `[match-poller] skipping announcement for guild=${guildId} account=${account.key} match=${matchId} queue=${queueType} (not in announceQueues)`
+                            );
+                            lastProcessedMatchId = matchId;
+                            continue;
+                        }
+                    
                         console.log(
                             `[match-poller] NEW match guild=${guildId} ${account.key} match=${matchId} queue=${queueType} place=${normPlacement} delta=${delta}`
                         );

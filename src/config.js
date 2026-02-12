@@ -8,7 +8,6 @@ import 'dotenv/config';
  * @typedef {Object} AppConfig
  * @property {string} discordBotToken
  * @property {string} discordClientId
- * @property {string} discordGuildId
  * @property {string} riotTftApiKey
  * @property {string} riotLolApiKey
  * @property {string} defaultRegion
@@ -17,7 +16,6 @@ import 'dotenv/config';
  * @property {number} rankRefreshIntervalMinutes
  * @property {number} recapAutopostHour
  * @property {number} recapAutopostMinute
- * @property {string|null} discordChannelId
  */
 
 // === Defaults and validation sets ===
@@ -99,7 +97,6 @@ function readRegion() {
 export const config = Object.freeze({
     discordBotToken: requireString('DISCORD_BOT_TOKEN'),
     discordClientId: requireString('DISCORD_CLIENT_ID'),
-    discordGuildId: requireString('DISCORD_GUILD_ID'),
     riotTftApiKey: requireString('RIOT_TFT_API_KEY'),
     riotLolApiKey: requireString('RIOT_LOL_API_KEY'),
     defaultRegion: readRegion(),
@@ -128,7 +125,6 @@ export const config = Object.freeze({
         min: 0,
         max: 59,
     }),
-    discordChannelId: optionalString('DISCORD_CHANNEL_ID'),
 });
 
 // Export a default for convenience so imports stay concise.
