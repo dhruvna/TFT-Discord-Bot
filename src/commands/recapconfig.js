@@ -12,6 +12,12 @@ export default {
     )
     .addBooleanOption((opt) =>
       opt
+        .setName("status")
+        .setDescription("Show current recap autopost settings and ignore all other options.")
+        .setRequired(false)
+    )
+    .addBooleanOption((opt) =>
+      opt
         .setName("enabled")
         .setDescription("Enable/disable autopost")
         .setDescription("Enable/disable autopost (required unless `status` is true).")
@@ -30,12 +36,6 @@ export default {
         .setDescription("Which queue to post")
         .setRequired(false)
         .addChoices(...RANKED_QUEUE_CHOICES)
-    )
-    .addBooleanOption((opt) =>
-      opt
-        .setName("status")
-        .setDescription("Show current recap autopost settings and ignore all other options.")
-        .setRequired(false)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 

@@ -51,7 +51,7 @@ async function buildQueueEmbed({account, label, entry}) {
 export default {
     data: new SlashCommandBuilder()
         .setName("rank")
-        .setDescription("TESTING 123Look up ranked info for a Riot ID")
+        .setDescription("Look up ranked info for a Riot ID")
         .addStringOption((opt) =>
             opt.setName('account').setDescription('Select a registered Riot ID').setRequired(true).setAutocomplete(true)
         ),
