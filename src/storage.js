@@ -12,6 +12,7 @@ const DATA_PATH = process.env.DATA_PATH
 
 // Serialize write operations so RMW cycles don't collide.
 let writeQueue = Promise.resolve();
+const DISCORD_SNOWFLAKE_REGEX = /^\d{17,20}$/;
 
 function enqueueWrite(operation) {
     const run = writeQueue.then(operation, operation);
@@ -75,10 +76,23 @@ export async function mutateDb(mutator) {
 }
 
 export async function mutateGuild(guildId, mutator) {
+    assertValidGuildId(guildId, 'mutateGuild');
     return mutateDb(async (db) => {
         const guild = ensureGuild(db, guildId);
         return mutator({ db, guild });
     });
+}
+
+export function isValidGuildId(guildId) {
+    return typeof guildId === 'string' && DISCORD_SNOWFLAKE_REGEX.test(guildId);
+}
+
+export function assertValidGuildId(guildId, context = 'storage') {
+    if (!isValidGuildId(guildId)) {
+        throw new Error(
+            `[${context}] Invalid guildId "${String(guildId)}". Expected a Discord snowflake string (17-20 digits).`
+        );
+    }
 }
 
 // === Guild normalization ===
@@ -235,5 +249,5 @@ export function getKnownGuildIds(db) {
     if (!db || typeof db !== 'object') return [];
 
     return Object.keys(db)
-        .filter((guildId) => /^\d{17,20}$/.test(guildId));
+        .filter((guildId) => isValidGuildId(guildId));
 }

@@ -1,6 +1,6 @@
 // === Imports ===
 // The recap autoposter builds recap embeds and sends them on a schedule.
-import { loadDb, setGuildRecapLastSentYmdInStore } from '../storage.js';
+import { getKnownGuildIds, loadDb, setGuildRecapLastSentYmdInStore } from '../storage.js';
 import { QUEUE_TYPES } from '../constants/queues.js';
 import { buildRecapEmbed, computeRecapRows, hoursForMode } from '../utils/recap.js';
 import config from "../config.js";
@@ -29,34 +29,32 @@ export function shouldFireRecapAutopost({
     getYmd = getLocalYmd,
 }) {
     const today = getYmd(now);
-    const hh = now.getHours();
-    const mm = now.getMinutes();
-    const onSchedule = hh === fireHour && mm === fireMinute;
+    const scheduledTime = new Date(now);
+    scheduledTime.setHours(fireHour, fireMinute, 0, 0);
     return {
-        shouldFire: onSchedule && lastSentYmd !== today,
+        shouldFire: now >= scheduledTime && lastSentYmd !== today,
         today,
-        hh,
-        mm,
+        scheduledTime,
     };
 }
 
 
 // === Service entry point ===
-// Polls once per minute to see if a recap should be posted.
-export async function startRecapAutoposter(client, { fireHour, fireMinute} = {}) {
+// Polls on a configurable interval to see if a recap should be posted.
+export async function startRecapAutoposter(client, { fireHour, fireMinute, pollIntervalMs } = {}) {
     const FIRE_HOUR = fireHour ?? config.recapAutopostHour;
     const FIRE_MINUTE = fireMinute ?? config.recapAutopostMinute;
-
+    const POLL_INTERVAL_MS = pollIntervalMs ?? 5 * 60 * 1000;
     // One polling iteration. Splitting this out keeps the interval handler small.
     const tick = async () => {
         const fallbackChannelId = config.discordChannelId;
 
         const db = await loadDb();
-        const guildIds = Object.keys(db);
+        const guildIds = getKnownGuildIds(db);
         if (guildIds.length === 0) return;
 
         const now = new Date();
-        const { today, hh, mm } = shouldFireRecapAutopost({
+        const { today, scheduledTime } = shouldFireRecapAutopost({
             now,
             fireHour: FIRE_HOUR,
             fireMinute: FIRE_MINUTE,
@@ -64,10 +62,7 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute} = {})
         });
 
         console.log(
-            `[recap-autopost] tick ${today} ${String(hh).padStart(2, '0')}:${String(mm).padStart(
-                2,
-                '0'
-            )} guilds=${guildIds.length}`
+            `[recap-autopost] tick today=${today} now=${now.toISOString()} scheduledTime=${scheduledTime.toISOString()} lastSentYmd=<per-guild> guilds=${guildIds.length}`
         );
 
         for (const guildId of guildIds) {
@@ -80,12 +75,16 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute} = {})
                 lastSentYmd = null,
             } = guild.recap;
 
-            const { shouldFire } = shouldFireRecapAutopost({
+            const { shouldFire, scheduledTime: guildScheduledTime } = shouldFireRecapAutopost({
                 now,
                 fireHour: FIRE_HOUR,
                 fireMinute: FIRE_MINUTE,
                 lastSentYmd,
             });
+
+            console.log(
+                `[recap-autopost] evaluate guild=${guildId} now=${now.toISOString()} scheduledTime=${guildScheduledTime.toISOString()} lastSentYmd=${lastSentYmd ?? 'null'} shouldFire=${shouldFire}`
+            );
 
             if (!shouldFire) continue;
 
@@ -123,12 +122,10 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute} = {})
             // Persist the send date to prevent duplicate posts on the same day.
             const updated = await setGuildRecapLastSentYmdInStore(guildId, today);
             console.log(`[recap-autopost] sent guild=${guildId} today=${today} stored=${updated}`);
-
-            console.log(`[recap-autopost] sent guild=${guildId} today=${today}`);
         }
     };
 
-    // Run immediately and then every 5 minutes to catch the scheduled time.
+    // Run immediately and then continue polling; firing logic allows catch-up after fire minute.
     await tick();
-    setInterval(() => tick().catch((e) => console.error("Recap autopost tick failed:", e)), 5 * 60 * 1000);
+    setInterval(() => tick().catch((e) => console.error("Recap autopost tick failed:", e)), POLL_INTERVAL_MS);
 }

@@ -69,7 +69,7 @@ export default {
         }   
 
         // 2. Defer reply in case of Riot API delays
-        await interaction.deferReply();
+        await interaction.deferReply({ ephemeral: true });
 
         // 3. Determine selected account
         const key = interaction.options.getString('account', true);
@@ -129,6 +129,6 @@ export default {
         
         //8. Send reply with embeds
         await interaction.editReply({ embeds: [embeds[0]] });
-        if (embeds[1]) await interaction.followUp({ embeds: [embeds[1]] });
+        if (embeds[1]) await interaction.followUp({ embeds: [embeds[1]], ephemeral: true});
     },
 };

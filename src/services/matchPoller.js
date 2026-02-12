@@ -1,7 +1,7 @@
 // === Imports ===
 // This service orchestrates polling Riot for match updates and sending Discord updates.
 
-import { loadDb, upsertGuildAccountInStore } from '../storage.js';
+import { getKnownGuildIds, loadDb, upsertGuildAccountInStore } from '../storage.js';
 import { getTFTMatch, getTFTMatchIdsByPuuid, getTFTRankByPuuid } from '../riot.js';
 
 import {
@@ -210,7 +210,7 @@ export async function startMatchPoller(client) {
             const channelCache = new Map(); // channelId -> channel (cache per tick)
 
             const db = await loadDb();
-            const guildIds = Object.keys(db);
+            const guildIds = getKnownGuildIds(db);
             if (guildIds.length === 0) return;
         
             const totalAccounts = guildIds.reduce((sum, guildId) => {
@@ -259,7 +259,7 @@ export async function startMatchPoller(client) {
                             try {
                                 const refreshed = await refreshRankSnapshot({ riotLimiter, account });
                                 
-                                await upsertGuildAccountInStore(db, guildId, {
+                                await upsertGuildAccountInStore(guildId, {
                                     ...account,
                                     lastRankByQueue: refreshed,
                                 });
@@ -293,11 +293,14 @@ export async function startMatchPoller(client) {
                     let recapEvents = Array.isArray(account.recapEvents) ? account.recapEvents : [];
                     let lastProcessedMatchId = account.lastMatchId;
 
-                    for (const [index, matchId] of orderedMatchIds.entries()) {
-                        const isMostRecent = index === orderedMatchIds.length - 1;
+                    const preparedMatches = [];
+                    for (const matchId of orderedMatchIds) {
+
+                    // for (const [index, matchId] of orderedMatchIds.entries()) {
+                    //     const isMostRecent = index === orderedMatchIds.length - 1;
                         const match = await fetchMatch({ riotLimiter, account, matchId });
                         const participants = match?.info?.participants ?? [];
-                        const me = participants.find((p => p.puuid === account.puuid));
+                        const me = participants.find((p) => p.puuid === account.puuid);
                         const placement = me?.placement ?? null;
                         
                         const meta = detectQueueMetaFromMatch(match);
@@ -305,8 +308,37 @@ export async function startMatchPoller(client) {
                         const isRanked = isRankedQueue(queueType);
                         const normPlacement = normalizePlacement({ placement, queueType }); 
                         
-                        // Only refresh rank once, for the latest ranked match.
-                        if (isMostRecent && isRanked) {
+                        preparedMatches.push({
+                            match,
+                            matchId,
+                            me,
+                            normPlacement,
+                            queueType,
+                            isRanked,
+                        });
+                    }
+
+                    let latestRankedIndex = -1;
+                    for (let i = preparedMatches.length - 1; i >= 0; i -= 1) {
+                        if (preparedMatches[i].isRanked) {
+                            latestRankedIndex = i;
+                            break;
+                        }
+                    }
+
+                    for (const [index, prepared] of preparedMatches.entries()) {
+                        const {
+                            match,
+                            matchId,
+                            me,
+                            normPlacement,
+                            queueType,
+                            isRanked,
+                        } = prepared;
+                        const isLatestRankedMatch = index === latestRankedIndex;
+                        if (isLatestRankedMatch) {
+                        // // Only refresh rank once, for the latest ranked match.
+                        // if (isMostRecent && isRanked) {
                             try {
                                 after = await refreshRankSnapshot({ riotLimiter, account });
                             } catch {
@@ -316,8 +348,8 @@ export async function startMatchPoller(client) {
 
                         const deltas = computeRankSnapshotDeltas({ before, after });
                         
-                        const afterRank = isRanked && isMostRecent ? (after?.[queueType] ?? null) : null;
-                        const delta = isRanked && isMostRecent ? (deltas?.[queueType] ?? 0) : 0;
+                        const afterRank = isLatestRankedMatch ? (after?.[queueType] ?? null) : null;
+                        const delta = isLatestRankedMatch ? (deltas?.[queueType] ?? 0) : 0;
                         
                         // Capture recap data independently of announcement filtering.
                         if (isRanked) {
