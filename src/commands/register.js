@@ -14,6 +14,7 @@ import {
     loadDb,
     saveDb,
     upsertGuildAccount,
+    upsertGuildAccountInStore,
 } from '../storage.js';
 import { RANKED_QUEUES } from "../constants/queues.js";
 import { toRankSnapshot } from "../utils/rankSnapshot.js";
@@ -93,9 +94,7 @@ export default {
         };
 
         // 9. Upsert into storage
-        const db = await loadDb();
-        const { existed } = await upsertGuildAccount(db, guildId, stored);
-        await saveDb(db);
+        const { existed } = await upsertGuildAccountInStore(guildId, stored);
 
         // 10. Confirm to user
         if (existed) {

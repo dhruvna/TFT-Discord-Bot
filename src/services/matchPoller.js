@@ -1,7 +1,7 @@
 // === Imports ===
 // This service orchestrates polling Riot for match updates and sending Discord updates.
 
-import { loadDb, saveDbIfChanged, upsertGuildAccount} from '../storage.js';
+import { loadDb, upsertGuildAccountInStore } from '../storage.js';
 import { getTFTMatch, getTFTMatchIdsByPuuid, getTFTRankByPuuid } from '../riot.js';
 
 import {
@@ -210,7 +210,6 @@ export async function startMatchPoller(client) {
             const channelCache = new Map(); // channelId -> channel (cache per tick)
 
             const db = await loadDb();
-            let didChange = false;
             const guildIds = Object.keys(db);
             if (guildIds.length === 0) return;
         
@@ -260,11 +259,11 @@ export async function startMatchPoller(client) {
                             try {
                                 const refreshed = await refreshRankSnapshot({ riotLimiter, account });
                                 
-                                await upsertGuildAccount(db, guildId, {
+                                await upsertGuildAccountInStore(db, guildId, {
                                     ...account,
                                     lastRankByQueue: refreshed,
                                 });
-                                didChange = true;
+                                account.lastRankByQueue = refreshed;
                             } catch (err) {
                                 console.error(
                                     `Error refreshing rank for account ${account.key} (guild=${guildId}):`,
@@ -361,14 +360,13 @@ export async function startMatchPoller(client) {
                         lastProcessedMatchId = matchId;
                     }
 
-                    await upsertGuildAccount(db, guildId, {
+                    await upsertGuildAccountInStore(guildId, {
                         ...account,
                         // Persist lastMatchId so we only announce new games.
                         lastMatchId: lastProcessedMatchId,
                         lastRankByQueue: after,
                         recapEvents,
                     });
-                    didChange = true;
             } catch (err) {
                 console.error(
                     `Error polling matches for account ${account.key} (guild=${guildId}):`,
@@ -378,7 +376,6 @@ export async function startMatchPoller(client) {
             await sleep(perAccountDelayMs);
             }
         }
-        await saveDbIfChanged(db, didChange);
         } finally {
             isTickRunning = false;
         }        

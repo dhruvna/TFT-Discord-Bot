@@ -1,6 +1,6 @@
 // src/commands/recapconfig.js
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
-import { loadDb, saveDb, getGuildRecapConfig, setGuildRecapConfig } from "../storage.js";
+import { loadDb, getGuildRecapConfig, setGuildRecapConfigInStore } from "../storage.js";
 import { RANKED_QUEUE_CHOICES, queueLabel } from "../constants/queues.js";
 import { RECAP_MODE_CHOICES, modeLabel } from "../constants/recap.js";
 
@@ -89,8 +89,7 @@ export default {
       ...(enabled ? { lastSentYmd: null } : {}), // when enabling, allow next 9am to fire
     };
 
-    const updated = setGuildRecapConfig(db, guildId, patch);
-    await saveDb(db);
+    const updated = await setGuildRecapConfigInStore(guildId, patch);
 
     console.log(`[recapconfig] update guild=${guildId} patch=${JSON.stringify(patch)} -> ${JSON.stringify(updated)}`);
 

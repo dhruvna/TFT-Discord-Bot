@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
-import { loadDb, saveDb, setGuildChannel, setGuildQueueConfig } from "../storage.js";
+import { setGuildChannelAndQueueConfigInStore } from "../storage.js";
 import { DEFAULT_ANNOUNCE_QUEUES } from "../constants/queues.js";
 
 export default {
@@ -44,17 +44,11 @@ export default {
         
         const effectiveRankedOnly = interaction.options.getBoolean("ranked_only") ?? true;
 
-        const db = await loadDb();
-
-        await setGuildChannel(db, guildId, channel.id);
-
-        if (effectiveRankedOnly) {
-            await setGuildQueueConfig(db, guildId, DEFAULT_ANNOUNCE_QUEUES);
-        } else {
-            await setGuildQueueConfig(db, guildId, null);
-        }
-        await saveDb(db);
-
+        await setGuildChannelAndQueueConfigInStore(guildId, {
+            channelId: channel.id,
+            queues: effectiveRankedOnly ? DEFAULT_ANNOUNCE_QUEUES : null,
+        });
+        
         await interaction.editReply(
             `Match result announcements will be sent to ${channel}.\n` +
                 `Queue filter: **${effectiveRankedOnly ? "Ranked + Double Up only" : "All queues"}**`

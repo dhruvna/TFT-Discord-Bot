@@ -1,6 +1,6 @@
 // === Imports ===
 // The recap autoposter builds recap embeds and sends them on a schedule.
-import { loadDb, saveDbIfChanged } from '../storage.js';
+import { loadDb, setGuildRecapLastSentYmdInStore } from '../storage.js';
 import { QUEUE_TYPES } from '../constants/queues.js';
 import { buildRecapEmbed, computeRecapRows, hoursForMode } from '../utils/recap.js';
 import config from "../config.js";
@@ -52,7 +52,6 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute} = {})
         const fallbackChannelId = config.discordChannelId;
 
         const db = await loadDb();
-        let didChange = false;
         const guildIds = Object.keys(db);
         if (guildIds.length === 0) return;
 
@@ -122,11 +121,11 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute} = {})
             await channel.send({ embeds: [embed] });
             
             // Persist the send date to prevent duplicate posts on the same day.
-            guild.recap.lastSentYmd = today;
-            didChange = true;
+            const updated = await setGuildRecapLastSentYmdInStore(guildId, today);
+            console.log(`[recap-autopost] sent guild=${guildId} today=${today} stored=${updated}`);
+
             console.log(`[recap-autopost] sent guild=${guildId} today=${today}`);
         }
-        await saveDbIfChanged(db, didChange);
     };
 
     // Run immediately and then every 5 minutes to catch the scheduled time.
