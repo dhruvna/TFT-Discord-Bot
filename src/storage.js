@@ -230,3 +230,10 @@ export async function setGuildChannelAndQueueConfigInStore(guildId, { channelId,
         return { didChange: true, channelId, announceQueues };
     });
 }
+
+export function getKnownGuildIds(db) {
+    if (!db || typeof db !== 'object') return [];
+
+    return Object.keys(db)
+        .filter((guildId) => /^\d{17,20}$/.test(guildId));
+}

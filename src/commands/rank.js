@@ -53,7 +53,7 @@ export default {
         .setName("rank")
         .setDescription("Look up ranked info for a Riot ID")
         .addStringOption((opt) =>
-            opt.setName('account').setDescription('Select a registered Riot ID').setRequired(true).setAutocomplete(true)
+            opt.setName('account').setDescription('Select a Riot ID').setRequired(true).setAutocomplete(true)
         ),
     
     async autocomplete(interaction) {
