@@ -26,7 +26,6 @@ const commands = loadedCommands.map((command) => {
 // === Registration ===
 // Register globally so commands work in every guild the bot joins.
 const rest = new REST({ version: '10' }).setToken(token);
-await rest.put(Routes.applicationCommands(clientId), { body: [] }); // Clear out any existing guild-specific commands first
 
 console.log('Registering slash commands (global)...');
 await rest.put(Routes.applicationCommands(clientId), { body: commands });
@@ -38,7 +37,7 @@ const guildIds = getKnownGuildIds(db);
 if (!guildIds.length) {
     console.log('No guild IDs found in registrations.json; skipping guild override cleanup.');
 } else {
-    console.log(`Clearing guild-level command overrides in ${guildIds.length} known guild(s)...`);
+    console.log(`Clearing guild-scoped command overrides in ${guildIds.length} known guild(s)...`);
 
     for (const guildId of guildIds) {
         try {

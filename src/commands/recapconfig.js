@@ -2,7 +2,8 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { loadDb, getGuildRecapConfig, setGuildRecapConfigInStore } from "../storage.js";
 import { RANKED_QUEUE_CHOICES, queueLabel } from "../constants/queues.js";
-import { RECAP_MODE_CHOICES, modeLabel } from "../constants/recap.js";
+import { RECAP_MODE_CHOICES, formatRecapScheduleTime, modeLabel } from "../constants/recap.js";
+import config from "../config.js";
 
 export default {
   data: new SlashCommandBuilder()
@@ -54,6 +55,7 @@ export default {
 
     if (wantsStatus) {
       const cfg = getGuildRecapConfig(db, guildId);
+      const scheduleText = formatRecapScheduleTime(config.recapAutopostHour, config.recapAutopostMinute);
       console.log(`[recapconfig] status guild=${guildId} cfg=${JSON.stringify(cfg)}`);
 
       await interaction.reply({
@@ -62,7 +64,7 @@ export default {
           `• Enabled: **${cfg.enabled ? "Yes" : "No"}**\n` +
           `• Queue: **${queueLabel(cfg.queue)}**\n` +
           `• Mode: **${modeLabel(cfg.mode)}**\n` +
-          `• Time: **9:00 AM**\n` +
+          `• Time: **${scheduleText}**\n` +
           `• Last sent: ${cfg.lastSentYmd ?? "—"}`,
         ephemeral: true,
       });
@@ -89,12 +91,13 @@ export default {
     };
 
     const updated = await setGuildRecapConfigInStore(guildId, patch);
+    const scheduleText = formatRecapScheduleTime(config.recapAutopostHour, config.recapAutopostMinute);
 
     console.log(`[recapconfig] update guild=${guildId} patch=${JSON.stringify(patch)} -> ${JSON.stringify(updated)}`);
 
     await interaction.reply({
       content: enabled
-        ? `✅ Autopost enabled: **${queueLabel(updated.queue)}** • **${modeLabel(updated.mode)}** • posts at **9:00 AM**`
+        ? `✅ Autopost enabled: **${queueLabel(updated.queue)}** • **${modeLabel(updated.mode)}** • posts at **${scheduleText}**`
         : `🛑 Autopost disabled.`,
       ephemeral: true,
     });

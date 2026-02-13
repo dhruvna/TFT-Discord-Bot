@@ -72,8 +72,3 @@ export async function getTftRegaliaThumbnailUrl({ queueType, tier }) {
 
     return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-regalia/${file}`;
 }
-
-export async function getTftChampionThumbnail({ championId = 'TFT16_Aatrox' }) {
-    const version = await getLatestDDragonVersion();
-    return `https://ddragon.leagueoflegends.com/cdn/${version}/img/tft-champion/${championId}_splash_centered_0.TFT_Set16.png`;
-}

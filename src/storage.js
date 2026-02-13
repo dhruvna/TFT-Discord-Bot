@@ -55,15 +55,8 @@ export async function loadDb() {
     }
 }
 
-// Write the DB atomically (write temp -> rename) to avoid corruption.
-export async function saveDb(db) {
-    return enqueueWrite(async () => {
-        await writeDbAtomically(db);
-    });
-}
-
 // Queue-backed read-modify-write transaction.
-export async function mutateDb(mutator) {
+async function mutateDb(mutator) {
     return enqueueWrite(async () => {
         const db = await loadDb();
         const result = await mutator(db);
@@ -75,7 +68,7 @@ export async function mutateDb(mutator) {
     });
 }
 
-export async function mutateGuild(guildId, mutator) {
+async function mutateGuild(guildId, mutator) {
     assertValidGuildId(guildId, 'mutateGuild');
     return mutateDb(async (db) => {
         const guild = ensureGuild(db, guildId);
@@ -83,11 +76,11 @@ export async function mutateGuild(guildId, mutator) {
     });
 }
 
-export function isValidGuildId(guildId) {
+function isValidGuildId(guildId) {
     return typeof guildId === 'string' && DISCORD_SNOWFLAKE_REGEX.test(guildId);
 }
 
-export function assertValidGuildId(guildId, context = 'storage') {
+function assertValidGuildId(guildId, context = 'storage') {
     if (!isValidGuildId(guildId)) {
         throw new Error(
             `[${context}] Invalid guildId "${String(guildId)}". Expected a Discord snowflake string (17-20 digits).`
@@ -138,12 +131,7 @@ export async function listGuildAccounts(guildId) {
     return db[guildId]?.accounts ?? [];
 }
 
-export async function getGuildAccountByKey(guildId, key) {
-    const accounts = await listGuildAccounts(guildId);
-    return accounts.find((a) => a.key === key) ?? null;
-}
-
-export async function upsertGuildAccount(db, guildId, account) {
+async function upsertGuildAccount(db, guildId, account) {
     const guild = ensureGuild(db, guildId);
 
     const idx = guild.accounts.findIndex((a) => a.key === account.key);
@@ -162,11 +150,6 @@ export async function upsertGuildAccountInStore(guildId, account) {
     });
 }
 
-// Only persist when the caller indicates a change to reduce disk writes.
-export async function saveDbIfChanged(db, didChange) {
-    if (didChange) await saveDb(db);
-}
-
 export async function removeGuildAccountByKey(guildId, key) {
     return mutateGuild(guildId, async ({ guild }) => {
         if (!guild?.accounts?.length) return { removed: null, didChange: false };
@@ -178,21 +161,10 @@ export async function removeGuildAccountByKey(guildId, key) {
 }
 
 // === Guild-level settings ===
-export function getGuildChannelId(db, guildId) {
-    return db?.[guildId]?.channelId ?? null;
-}
-
-export async function setGuildChannel(db, guildId, channelId) {
+async function setGuildChannel(db, guildId, channelId) {
     const g = ensureGuild(db, guildId);
     g.channelId = channelId;
     return { channelId };
-}
-
-export async function setGuildChannelInStore(guildId, channelId) {
-    return mutateGuild(guildId, async ({ db }) => {
-        const updated = await setGuildChannel(db, guildId, channelId);
-        return { ...updated, didChange: true };
-    });
 }
 
 export function getGuildRecapConfig(db, guildId) {
@@ -224,17 +196,10 @@ export async function setGuildRecapLastSentYmdInStore(guildId, lastSentYmd) {
     }).then((result) => result?.updated ?? false);
 }
 
-export async function setGuildQueueConfig(db, guildId, queues) {
+async function setGuildQueueConfig(db, guildId, queues) {
     const g = ensureGuild(db, guildId);
     g.announceQueues = queues;
     return g.announceQueues;
-}
-
-export async function setGuildQueueConfigInStore(guildId, queues) {
-    return mutateGuild(guildId, async ({ db }) => {
-        const announceQueues = await setGuildQueueConfig(db, guildId, queues);
-        return { announceQueues, didChange: true };
-    });
 }
 
 export async function setGuildChannelAndQueueConfigInStore(guildId, { channelId, queues }) {

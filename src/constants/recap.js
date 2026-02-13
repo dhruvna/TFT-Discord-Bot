@@ -8,3 +8,15 @@ export const RECAP_MODE_CHOICES = [
 export function modeLabel(mode) {
   return mode === "WEEKLY" ? "Weekly" : "Daily";
 }
+
+// Format recap schedule time in a consistent human-readable 12-hour clock.
+export function formatRecapScheduleTime(hour, minute) {
+  const normalizedHour = Number(hour ?? 0);
+  const normalizedMinute = Number(minute ?? 0);
+
+  const suffix = normalizedHour >= 12 ? "PM" : "AM";
+  const hour12 = normalizedHour % 12 || 12;
+  const minutePadded = String(normalizedMinute).padStart(2, "0");
+
+  return `${hour12}:${minutePadded} ${suffix}`;
+}
