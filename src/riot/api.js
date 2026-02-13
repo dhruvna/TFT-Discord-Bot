@@ -24,7 +24,11 @@ async function riotFetchJson(url, gameType = 'TFT', limiter = sharedRiotLimiter)
     const res = await fetch(url, { headers: { 'X-Riot-Token': apiKey } });
     if (!res.ok) {
         const body = await res.text();
-        throw new Error(`Riot API request failed: ${res.status} on ${url}: ${body}`);
+        const err = new Error(`Riot API request failed: ${res.status} on ${url}`);
+        err.status = res.status;
+        err.responseText = body || null;
+        err.endpoint = url;
+        throw err;
     }
 
     return res.json();

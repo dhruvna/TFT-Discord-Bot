@@ -47,6 +47,5 @@ if (!guildIds.length) {
             console.warn(`Failed to clear guild override commands for guild ${guildId}.`, error);
         }
     }
-
     console.log('Guild override cleanup complete.');
 }

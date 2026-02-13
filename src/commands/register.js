@@ -52,9 +52,30 @@ export default {
         // 5. Riot ID -> Account PUUID
         let account;
         try {
-            account = await getAccountByRiotId({ regional,  gameName, tagLine });
-        } catch {
-            await interaction.editReply("Couldn't find that Riot ID. Please double-check spelling and try again.");
+            account = await getAccountByRiotId({ regional, gameName, tagLine });
+        } catch (err) {
+            const status = err?.status;
+            console.error(
+                `[register] getAccountByRiotId failed status=${status ?? 'unknown'} endpoint=${err?.endpoint ?? 'unknown'} gameName=${gameName} tagLine=${tagLine} region=${region}`,
+                err?.responseText ? { responseText: err.responseText } : err
+            );
+
+            if (status === 404) {
+                await interaction.editReply("Couldn't find that Riot ID. Please double-check spelling and try again.");
+                return;
+            }
+
+            if (status === 401 || status === 403) {
+                await interaction.editReply('Riot API key/config issue. Please try again later.');
+                return;
+            }
+
+            if (status === 429) {
+                await interaction.editReply('Riot API rate limited, try again shortly.');
+                return;
+            }
+
+            await interaction.editReply('Temporary Riot API failure. Please try again shortly.');
             return;
         }
 
@@ -63,7 +84,12 @@ export default {
         try {
             const entries = await getTFTRankByPuuid({ platform, puuid: account.puuid });
             lastRankByQueue = toRankSnapshot(entries, { rankedQueues: RANKED_QUEUES });
-        } catch {
+       } catch (err) {
+            const status = err?.status;
+            console.error(
+                `[register] getTFTRankByPuuid snapshot failed status=${status ?? 'unknown'} endpoint=${err?.endpoint ?? 'unknown'} puuid=${account.puuid} platform=${platform}`,
+                err?.responseText ? { responseText: err.responseText } : err
+            );
             lastRankByQueue = {};
         }
         
@@ -72,7 +98,12 @@ export default {
         try {
             const ids = await getTFTMatchIdsByPuuid({ regional, puuid: account.puuid, count: 1 });
             lastMatchId = Array.isArray(ids) && ids.length > 0 ? ids[0] : null;
-        } catch {
+        } catch (err) {
+            const status = err?.status;
+            console.error(
+                `[register] getTFTMatchIdsByPuuid snapshot failed status=${status ?? 'unknown'} endpoint=${err?.endpoint ?? 'unknown'} puuid=${account.puuid} regional=${regional}`,
+                err?.responseText ? { responseText: err.responseText } : err
+            );
             lastMatchId = null;
         }
 
@@ -99,6 +130,6 @@ export default {
             return;
         }
     
-        await interaction.editReply(`Successfully registered **${stored.gameName}#${stored.tagLine}** for this server.`); 
+        await interaction.editReply(`Successfully registered **${stored.gameName}#${stored.tagLine}** for this server.`);
     },
 };

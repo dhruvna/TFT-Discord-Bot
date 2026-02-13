@@ -99,6 +99,10 @@ function ensureGuild(db, guildId) {
         db[guildId].announceQueues = ['RANKED_TFT', 'RANKED_TFT_DOUBLE_UP'];
     }
 
+    if (!('messageProfile' in db[guildId])) {
+        db[guildId].messageProfile = 'neutral';
+    }
+
     if (!('recap' in db[guildId]) || typeof db[guildId].recap !== 'object' || db[guildId].recap === null) {
         db[guildId].recap = {
             enabled: false,

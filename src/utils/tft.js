@@ -12,6 +12,11 @@ import {
   isRankedQueue,
   queueLabel,
 } from "../constants/queues.js";
+import {
+    MESSAGE_PROFILES,
+    resolveMatchResultDescription,
+} from "../constants/messages.js";
+import { formatRankWithLp } from "./presentation.js";
 
 // === Queue helpers ===
 // Extract the queue id from a match payload while handling API variations.
@@ -100,6 +105,7 @@ export async function buildMatchResultEmbed({
     delta, 
     afterRank,
     participant,
+    messageProfile = MESSAGE_PROFILES.NEUTRAL,
  }) {
     const matchUrl = getTFTMatchUrl({ matchId });
     const label = labelForQueueType(queueType);
@@ -113,10 +119,7 @@ export async function buildMatchResultEmbed({
     const isLoss = p !== null && p >= 5;
     
     const lpChangeValue = isRanked ? formatDelta(d) : "—";
-    const rankValue =
-        isRanked && afterRank?.tier
-            ? `${afterRank.tier} ${afterRank.rank} — ${afterRank.lp} LP`
-            : "—";
+    const rankValue = isRanked ? formatRankWithLp(afterRank) : "—";
      
     // Start with a URL + timestamp so the embed is linkable and time-stamped
     const embed = new EmbedBuilder().setURL(matchUrl).setTimestamp(new Date());
@@ -136,24 +139,23 @@ export async function buildMatchResultEmbed({
     const riotId = `${account.gameName}#${account.tagLine}`;
     const ord = p ? placementToOrdinal(p) : 'N/A';
 
+    const description = resolveMatchResultDescription({
+        placement: p,
+        profile: messageProfile,
+    });
+
     // Use different colors/titles for wins and losses for quick scanning.
     if (isWin) {
         embed.setColor(0x2dcf71).setTitle(`${label} Victory for ${riotId}!`);
-        if (p === 1) embed.setDescription(`**dhruvna coaching DIFF**`);
-        else if (p === 2) embed.setDescription(`Highroller took my 1st smh`);
-        else if (p === 3) embed.setDescription(`Not too shabby for what I thought would be a 6th!`);
-        else embed.setDescription(`A 4th is a 4th, we be aight`);
+        embed.setDescription(description);
     } else if (isLoss) {
         embed.setColor(0xf34e3c).setTitle(`${label} Defeat for ${riotId}...`);
-        if (p === 5) embed.setDescription(`Hey 1st loser isn't too bad`);
-        else if (p === 6) embed.setDescription(`Shoulda gone six sevennnnnn`);
-        else if (p === 7) embed.setDescription(`At least it's not an 8th!`);
-        else if (p === 8) embed.setDescription(`**Lil bro went 8th again...**`);
+        embed.setDescription(description);
     } else {
         embed
         .setColor(0x5865f2)
         .setTitle(`${label} Result for ${riotId}`)
-        .setDescription(p ? `Finished ${ord}.` : `Match completed.`);
+        .setDescription(p ? `Finished ${ord}. ${description}` : description);
     }
 
     embed.addFields(

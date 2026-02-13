@@ -13,29 +13,49 @@ async function fetchJsonOrThrow(url, label) {
     return res.json();
 }
 
-let ddragonVersionCache = null;
+const DDRAGON_VERSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+let ddragonVersionCache = {
+    value: null,
+    fetchedAt: 0,
+};
 
 export async function getLatestDDragonVersion() {
-    if (ddragonVersionCache) return ddragonVersionCache;
+    const cacheIsFresh =
+        ddragonVersionCache.value &&
+        Date.now() - ddragonVersionCache.fetchedAt < DDRAGON_VERSION_TTL_MS;
+
+    if (cacheIsFresh) return ddragonVersionCache.value;
 
     const versions = await fetchJsonOrThrow(
         'https://ddragon.leagueoflegends.com/api/versions.json',
         'Data Dragon versions'
     );
 
-    ddragonVersionCache = versions[0];
-    return ddragonVersionCache;
+    ddragonVersionCache = {
+        value: versions[0],
+        fetchedAt: Date.now(),
+    };
+
+    return ddragonVersionCache.value;
 }
 
 function createDatasetLoader({ cacheKey, path }) {
-    let cache = null;
+    let cache = {
+        version: null,
+        value: null,
+    };
 
     return async function loadDataset() {
-        if (cache) return cache;
         const version = await getLatestDDragonVersion();
+        if (cache.version === version && cache.value) return cache.value;
         const url = `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/${path}`;
-        cache = await fetchJsonOrThrow(url, `Data Dragon ${cacheKey}`);
-        return cache;
+        cache = {
+            version,
+            value: await fetchJsonOrThrow(url, `Data Dragon ${cacheKey}`),
+        };
+
+        return cache.value;
     };
 }
 
