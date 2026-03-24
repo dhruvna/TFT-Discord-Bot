@@ -13,6 +13,8 @@ const DATA_PATH = process.env.DATA_PATH
 // Serialize write operations so RMW cycles don't collide.
 let writeQueue = Promise.resolve();
 const DISCORD_SNOWFLAKE_REGEX = /^\d{17,20}$/;
+const RECAP_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
 
 function enqueueWrite(operation) {
     const run = writeQueue.then(operation, operation);
@@ -219,4 +221,42 @@ export function getKnownGuildIds(db) {
 
     return Object.keys(db)
         .filter((guildId) => isValidGuildId(guildId));
+}
+
+export function pruneExpiredRecapEventsInDb(db, nowMs = Date.now()) {
+    if (!db || typeof db !== 'object') {
+        return {
+            didChange: false,
+            prunedEvents: 0,
+            touchedAccounts: 0
+        };        
+    }
+
+    const cutoffMs = nowMs - RECAP_EVENT_RETENTION_MS;
+    let didChange = false;
+    let prunedEvents = 0;
+    let touchedAccounts = 0;
+
+    for (const guildId of getKnownGuildIds(db)) {
+        const guild = ensureGuild(db, guildId);
+        for (const account of guild.accounts) {
+            const recapEvents = Array.isArray(account?.recapEvents) ? account.recapEvents : [];
+            if (recapEvents.length === 0) continue;
+
+            const nextRecapEvents = recapEvents.filter((event) => Number(event?.at ?? 0) > cutoffMs);
+            const removedCount = recapEvents.length - nextRecapEvents.length;
+            if (removedCount <= 0) continue;
+
+            account.recapEvents = nextRecapEvents;
+            didChange = true;
+            prunedEvents += removedCount;
+            touchedAccounts += 1;
+        }
+    }
+
+    return { didChange, prunedEvents, touchedAccounts };
+}
+
+export async function pruneExpiredRecapEventsInStore(nowMs = Date.now()) {
+    return mutateDb((db) => pruneExpiredRecapEventsInDb(db, nowMs));
 }

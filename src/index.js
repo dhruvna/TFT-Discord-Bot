@@ -2,7 +2,7 @@
 // We group imports up front so the rest of the file reads as a narrative:
 // 1) framework primitives, 2) Node utilities, 3) local services/helpers.
 import { Client, GatewayIntentBits, Collection } from 'discord.js';
-import { loadDb } from './storage.js';
+import { loadDb, pruneExpiredRecapEventsInStore } from './storage.js';
 import { startRecapAutoposter } from './services/recapAutoPoster.js';
 import { startMatchPoller } from './services/matchPoller.js';
 import config from './config.js';
@@ -43,6 +43,15 @@ for (const command of commands) {
 // Once the client is connected, we log diagnostics and spin up background services.
 client.once('clientReady', async () => {
     console.log(`Logged in as ${client.user.tag}`);
+
+    try {
+        const pruneResult = await pruneExpiredRecapEventsInStore();
+        console.log(
+            `[startup] recap prune didChange=${pruneResult?.didChange ?? false} prunedEvents=${pruneResult?.prunedEvents ?? 0} touchedAccounts=${pruneResult?.touchedAccounts ?? 0}`
+        );
+    } catch (e) {
+        console.error('[startup] failed pruning recap events:', e);
+    }
 
     // Load the database and log some info about each guild for debugging.
     // This gives visibility into accounts, snapshot coverage, and recap config.
