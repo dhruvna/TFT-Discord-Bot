@@ -14,7 +14,10 @@ const DATA_PATH = process.env.DATA_PATH
 let writeQueue = Promise.resolve();
 const DISCORD_SNOWFLAKE_REGEX = /^\d{17,20}$/;
 const RECAP_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-
+const TRACKED_GAMES = {
+    TFT: 'tft',
+    LOL: 'lol',
+};
 
 function enqueueWrite(operation) {
     const run = writeQueue.then(operation, operation);
@@ -95,6 +98,7 @@ function assertValidGuildId(guildId, context = 'storage') {
 function ensureGuild(db, guildId) {
     if (!db[guildId]) db[guildId] = {};
     if (!Array.isArray(db[guildId].accounts)) db[guildId].accounts = [];
+    db[guildId].accounts = db[guildId].accounts.map((account) => normalizeAccountTracking(account));
     if (!('channelId' in db[guildId])) db[guildId].channelId = null;    
 
     if (!('announceQueues' in db[guildId])) {
@@ -126,6 +130,74 @@ function ensureGuild(db, guildId) {
     return db[guildId];
 }
 
+function readLegacyRankByQueue(account) {
+    return account?.lastRankByQueue && typeof account.lastRankByQueue === 'object'
+        ? account.lastRankByQueue
+        : {};
+}
+
+function readLegacyRecapEvents(account) {
+    return Array.isArray(account?.recapEvents) ? account.recapEvents : [];
+}
+
+function readLegacyLastMatchId(account) {
+    return account?.lastMatchId ?? null;
+}
+
+function normalizeTrackedGameNamespace(gameState, { fallbackLastMatchId = null, fallbackLastRankByQueue = {}, fallbackRecapEvents = [] } = {}) {
+    const safeGameState = gameState && typeof gameState === 'object' ? gameState : {};
+    return {
+        ...safeGameState,
+        lastMatchId: safeGameState.lastMatchId ?? fallbackLastMatchId,
+        lastRankByQueue:
+            safeGameState.lastRankByQueue && typeof safeGameState.lastRankByQueue === 'object'
+                ? safeGameState.lastRankByQueue
+                : fallbackLastRankByQueue,
+        recapEvents: Array.isArray(safeGameState.recapEvents) ? safeGameState.recapEvents : fallbackRecapEvents,
+    };
+}
+
+export function normalizeAccountTracking(account) {
+    if (!account || typeof account !== 'object') return account;
+
+    const trackedGames = account.trackedGames && typeof account.trackedGames === 'object'
+        ? account.trackedGames
+        : {};
+
+    const tftTracked = normalizeTrackedGameNamespace(trackedGames[TRACKED_GAMES.TFT], {
+        fallbackLastMatchId: readLegacyLastMatchId(account),
+        fallbackLastRankByQueue: readLegacyRankByQueue(account),
+        fallbackRecapEvents: readLegacyRecapEvents(account),
+    });
+
+    const lolTracked = normalizeTrackedGameNamespace(trackedGames[TRACKED_GAMES.LOL], {
+        fallbackLastMatchId: null,
+        fallbackLastRankByQueue: {},
+        fallbackRecapEvents: [],
+    });
+
+    account.trackedGames = {
+        ...trackedGames,
+        [TRACKED_GAMES.TFT]: tftTracked,
+        [TRACKED_GAMES.LOL]: lolTracked,
+    };
+
+    return account;
+}
+
+export function getTrackedGameState(account, gameKey) {
+    const normalized = normalizeAccountTracking(account);
+    return normalized?.trackedGames?.[gameKey] ?? {};
+}
+
+export function getTftTracking(account) {
+    return getTrackedGameState(account, TRACKED_GAMES.TFT);
+}
+
+export function getLolTracking(account) {
+    return getTrackedGameState(account, TRACKED_GAMES.LOL);
+}
+
 // Build a stable key used to deduplicate accounts.
 export function makeAccountKey({ gameName, tagLine, platform }) {
     return `${gameName}#${tagLine}@${platform}`.toLowerCase();
@@ -134,7 +206,8 @@ export function makeAccountKey({ gameName, tagLine, platform }) {
 // === Account Creation, Read, Update, Deletion ===
 export async function listGuildAccounts(guildId) {
     const db = await loadDb();
-    return db[guildId]?.accounts ?? [];
+    const guild = ensureGuild(db, guildId);
+    return guild?.accounts ?? [];
 }
 
 async function upsertGuildAccount(db, guildId, account) {
@@ -143,8 +216,8 @@ async function upsertGuildAccount(db, guildId, account) {
     const idx = guild.accounts.findIndex((a) => a.key === account.key);
     const existed = idx >= 0;
 
-    if (existed) guild.accounts[idx] = { ...guild.accounts[idx], ...account };
-    else guild.accounts.push(account);
+    if (existed) guild.accounts[idx] = normalizeAccountTracking({ ...guild.accounts[idx], ...account });
+    else guild.accounts.push(normalizeAccountTracking(account));
 
     return { account, existed };
 }
@@ -240,14 +313,15 @@ export function pruneExpiredRecapEventsInDb(db, nowMs = Date.now()) {
     for (const guildId of getKnownGuildIds(db)) {
         const guild = ensureGuild(db, guildId);
         for (const account of guild.accounts) {
-            const recapEvents = Array.isArray(account?.recapEvents) ? account.recapEvents : [];
+            const tftTracking = getTftTracking(account);
+            const recapEvents = Array.isArray(tftTracking?.recapEvents) ? tftTracking.recapEvents : [];
             if (recapEvents.length === 0) continue;
 
             const nextRecapEvents = recapEvents.filter((event) => Number(event?.at ?? 0) > cutoffMs);
             const removedCount = recapEvents.length - nextRecapEvents.length;
             if (removedCount <= 0) continue;
 
-            account.recapEvents = nextRecapEvents;
+            tftTracking.recapEvents = nextRecapEvents;
             didChange = true;
             prunedEvents += removedCount;
             touchedAccounts += 1;

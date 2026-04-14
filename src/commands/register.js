@@ -116,9 +116,18 @@ export default {
             platform,
             regional,
             puuid: account.puuid,
-            lastMatchId,
-            lastRankByQueue,
-            recapEvents: [],
+            trackedGames: {
+                tft: {
+                    lastMatchId: null,
+                    lastRankByQueue: {},
+                    recapEvents: [],
+                },
+                lol: {
+                    lastMatchId: null,
+                    lastRankByQueue: {},
+                    recapEvents: [],
+                },
+            },
         };
 
         // 9. Upsert into storage

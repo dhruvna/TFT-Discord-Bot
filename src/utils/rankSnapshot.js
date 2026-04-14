@@ -1,6 +1,7 @@
 // === Imports ===
 // Ranked queue constants ensure we only snapshot relevant queues.
 import { RANKED_QUEUES } from "../constants/queues.js";
+import { getTftTracking } from "../storage.js";
 
 // === Rank normalization constants ===
 // The goal is to turn a tier/division/LP tuple into a single comparable number.
@@ -91,5 +92,6 @@ export function computeRankSnapshotDeltas({ before = {}, after = {} }) {
 // === Lookup helper ===
 // Convenience wrapper to fetch a stored snapshot from an account.
 export function getRankSnapshotForQueue(account, queueType) {
-  return account?.lastRankByQueue?.[queueType] ?? null;
+    const tftTracking = getTftTracking(account);
+    return tftTracking?.lastRankByQueue?.[queueType] ?? null;
 }

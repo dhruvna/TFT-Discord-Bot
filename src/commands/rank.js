@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getTftRegaliaThumbnailUrl, getLeagueOfGraphsUrl } from "../riot.js";
 import { GAME_TYPES, TFT_QUEUE_TYPES, queueLabel } from "../constants/queues.js"
-import { loadDb } from "../storage.js";
+import { getTftTracking, loadDb } from "../storage.js";
 import { respondWithAccountChoices } from "../utils/autocomplete.js";
 import { formatRankLine, formatWinrate } from "../utils/presentation.js";
 
@@ -85,7 +85,8 @@ export default {
         }
 
         // 4. Pull out rank info for TFT queues
-        let rankByQueue = stored.lastRankByQueue ?? {};
+        const tftTracking = getTftTracking(stored);
+        let rankByQueue = tftTracking.lastRankByQueue ?? {};
 
         // 5. Pull out queues we care about
         const rankedEntry = rankByQueue[TFT_QUEUE_TYPES.RANKED]

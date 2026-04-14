@@ -1,7 +1,7 @@
 // === Imports ===
 // This service orchestrates polling Riot for match updates and sending Discord updates.
 
-import { getKnownGuildIds, loadDb, upsertGuildAccountInStore } from '../storage.js';
+import { getKnownGuildIds, getTftTracking, loadDb, normalizeAccountTracking, upsertGuildAccountInStore } from '../storage.js';
 import { getTFTMatch, getTFTMatchIdsByPuuid, getTFTRankByPuuid } from '../riot.js';
 
 import {
@@ -33,8 +33,9 @@ const MATCH_BACKFILL_LIMIT = 10;
 // === Rank refresh logic ===
 // Determine whether cached rank data is stale enough to refresh.
 function shouldRefreshRank(account, now, maxAgeMs) {
-    if (!account?.lastRankByQueue) return true;
-    const entries = Object.values(account.lastRankByQueue);
+    const tftTracking = getTftTracking(account);
+    if (!tftTracking?.lastRankByQueue) return true;
+    const entries = Object.values(tftTracking.lastRankByQueue);
     if (entries.length === 0) return true;
     return entries.some((entry) => {
         const lastUpdatedAt = Number(entry?.lastUpdatedAt ?? 0);
@@ -83,8 +84,9 @@ function collectUnseenMatchIds({ ids, lastMatchId, unseenMatchIds, limit }) {
 }
 
 async function detectUnseenMatchIds({ account, matchBackfillLimit, fetchMatchIdsByAccount}) {
+    const tftTracking = getTftTracking(account);
     // If we have never seen a match for this account, fetch just one ID to seed it.
-    if (!account.lastMatchId) {
+    if (!tftTracking.lastMatchId) {
         const ids = await fetchMatchIdsByAccount({ count: 1, start: 0 });
         return Array.isArray(ids) ? ids.slice(0, 1) : [];
     }
@@ -103,7 +105,7 @@ async function detectUnseenMatchIds({ account, matchBackfillLimit, fetchMatchIds
 
         ({ unseenMatchIds, foundLast } = collectUnseenMatchIds({
             ids,
-            lastMatchId: account.lastMatchId,
+            lastMatchId: tftTracking.lastMatchId,
             unseenMatchIds,
             limit: matchBackfillLimit,
         }));
@@ -250,6 +252,7 @@ export async function startMatchPoller(client) {
                 }
 
                 for (const account of accounts) {
+                    normalizeAccountTracking(account);
                     if (!account?.puuid || !account?.regional || !account?.platform || !account?.key) {
                         await sleep(perAccountDelayMs);
                         continue;
@@ -263,9 +266,15 @@ export async function startMatchPoller(client) {
                                 
                                 await upsertGuildAccountInStore(guildId, {
                                     ...account,
-                                    lastRankByQueue: refreshed,
+                                    trackedGames: {
+                                        ...(account.trackedGames ?? {}),
+                                        tft: {
+                                            ...getTftTracking(account),
+                                            lastRankByQueue: refreshed,
+                                        },
+                                    },
                                 });
-                                account.lastRankByQueue = refreshed;
+                                getTftTracking(account).lastRankByQueue = refreshed;
                             } catch (err) {
                                 console.error(
                                     `Error refreshing rank for account ${account.key} (guild=${guildId}):`,
@@ -289,11 +298,12 @@ export async function startMatchPoller(client) {
 
                     // Process matches from oldest to newest so deltas line up.
                     const orderedMatchIds = [...unseenMatchIds].reverse();
-                    const before = account.lastRankByQueue ?? {};
+                    const tftTracking = getTftTracking(account);
+                    const before = tftTracking.lastRankByQueue ?? {};
                     let after = before;
                     const announceQueues = guild?.announceQueues ?? DEFAULT_ANNOUNCE_QUEUES;
-                    let recapEvents = Array.isArray(account.recapEvents) ? account.recapEvents : [];
-                    let lastProcessedMatchId = account.lastMatchId;
+                    let recapEvents = Array.isArray(tftTracking.recapEvents) ? tftTracking.recapEvents : [];
+                    let lastProcessedMatchId = tftTracking.lastMatchId;
 
                     const preparedMatches = [];
                     for (const matchId of orderedMatchIds) {
@@ -397,10 +407,16 @@ export async function startMatchPoller(client) {
 
                     await upsertGuildAccountInStore(guildId, {
                         ...account,
-                        // Persist lastMatchId so we only announce new games.
-                        lastMatchId: lastProcessedMatchId,
-                        lastRankByQueue: after,
-                        recapEvents,
+                        trackedGames: {
+                            ...(account.trackedGames ?? {}),
+                            tft: {
+                                ...tftTracking,
+                                // Persist lastMatchId so we only announce new games.
+                                lastMatchId: lastProcessedMatchId,
+                                lastRankByQueue: after,
+                                recapEvents,
+                            },
+                        },
                     });
             } catch (err) {
                 console.error(
