@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getTftRegaliaThumbnailUrl, getLeagueOfGraphsUrl } from "../riot.js";
-import { QUEUE_TYPES, queueLabel } from "../constants/queues.js"
+import { GAME_TYPES, TFT_QUEUE_TYPES, queueLabel } from "../constants/queues.js"
 import { loadDb } from "../storage.js";
 import { respondWithAccountChoices } from "../utils/autocomplete.js";
 import { formatRankLine, formatWinrate } from "../utils/presentation.js";
@@ -88,13 +88,12 @@ export default {
         let rankByQueue = stored.lastRankByQueue ?? {};
 
         // 5. Pull out queues we care about
-        const rankedEntry = rankByQueue[QUEUE_TYPES.RANKED_TFT]
-            ? { ...rankByQueue[QUEUE_TYPES.RANKED_TFT], queueType: QUEUE_TYPES.RANKED_TFT }
+        const rankedEntry = rankByQueue[TFT_QUEUE_TYPES.RANKED]
+            ? { ...rankByQueue[TFT_QUEUE_TYPES.RANKED], queueType: TFT_QUEUE_TYPES.RANKED }
             : null;
-        const doubleUpEntry = rankByQueue[QUEUE_TYPES.RANKED_TFT_DOUBLE_UP]
-            ? { ...rankByQueue[QUEUE_TYPES.RANKED_TFT_DOUBLE_UP], queueType: QUEUE_TYPES.RANKED_TFT_DOUBLE_UP }
+        const doubleUpEntry = rankByQueue[TFT_QUEUE_TYPES.RANKED_DOUBLE_UP]
+            ? { ...rankByQueue[TFT_QUEUE_TYPES.RANKED_DOUBLE_UP], queueType: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP }
             : null;
-
 
         // 6. Build embed fields
         const embeds = [];
@@ -103,7 +102,7 @@ export default {
             embeds.push(
                 await buildQueueEmbed({ 
                     account: stored, 
-                    label: queueLabel(QUEUE_TYPES.RANKED_TFT), 
+                    label: queueLabel(GAME_TYPES.TFT, TFT_QUEUE_TYPES.RANKED), 
                     entry: rankedEntry 
                 })
             );
@@ -112,7 +111,7 @@ export default {
             embeds.push(
                 await buildQueueEmbed({ 
                     account: stored, 
-                    label: queueLabel(QUEUE_TYPES.RANKED_TFT_DOUBLE_UP), 
+                    label: queueLabel(GAME_TYPES.TFT, TFT_QUEUE_TYPES.RANKED_DOUBLE_UP), 
                     entry: doubleUpEntry 
                 })
             );

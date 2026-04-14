@@ -17,7 +17,8 @@ import {
 
 import {
     DEFAULT_ANNOUNCE_QUEUES,
-    QUEUE_TYPES,
+    GAME_TYPES,
+    TFT_QUEUE_TYPES,
     isRankedQueue,
 } from '../constants/queues.js';
 
@@ -305,8 +306,8 @@ export async function startMatchPoller(client) {
                         const placement = me?.placement ?? null;
                         
                         const meta = detectQueueMetaFromMatch(match);
-                        const queueType = meta.queueType || QUEUE_TYPES.RANKED_TFT;
-                        const isRanked = isRankedQueue(queueType);
+                        const queueType = meta.queueType || TFT_QUEUE_TYPES.RANKED;
+                        const isRanked = isRankedQueue(GAME_TYPES.TFT, queueType);
                         const normPlacement = normalizePlacement({ placement, queueType }); 
                         
                         preparedMatches.push({

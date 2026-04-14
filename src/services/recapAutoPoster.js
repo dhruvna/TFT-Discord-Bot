@@ -1,7 +1,7 @@
 // === Imports ===
 // The recap autoposter builds recap embeds and sends them on a schedule.
 import { getKnownGuildIds, loadDb, setGuildRecapLastSentYmdInStore } from '../storage.js';
-import { QUEUE_TYPES } from '../constants/queues.js';
+import { GAME_TYPES, TFT_QUEUE_TYPES } from '../constants/queues.js';
 import { buildRecapEmbed, computeRecapRows, hoursForMode } from '../utils/recap.js';
 import config from "../config.js";
 
@@ -70,7 +70,7 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute, pollI
 
             const {
                 mode = 'DAILY',
-                queue = QUEUE_TYPES.RANKED_TFT,
+                queue = TFT_QUEUE_TYPES.RANKED,
                 lastSentYmd = null,
             } = guild.recap;
 
@@ -114,7 +114,7 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute, pollI
 
             const accounts = guild?.accounts ?? [];
             const rows = computeRecapRows(accounts, cutoff, queue);
-            const embed = buildRecapEmbed({ rows, mode, queue, hours });
+            const embed = buildRecapEmbed({ rows, mode, game: GAME_TYPES.TFT, queue, hours });
         
             await channel.send({ embeds: [embed] });
             

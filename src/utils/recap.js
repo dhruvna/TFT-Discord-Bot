@@ -2,7 +2,7 @@
 // Recap output is rendered into Discord embeds, with queue labels for clarity.
 
 import { EmbedBuilder } from "discord.js";
-import { queueLabel } from "../constants/queues.js";
+import { GAME_TYPES, queueLabel } from "../constants/queues.js";
 import { medalForIndex } from "./presentation.js";
 
 // === Mode helpers ===
@@ -83,7 +83,7 @@ function buildLines(rows, limit) {
 
 // === Embed construction ===
 // Translate recap rows into a Discord embed for posting.
-export function buildRecapEmbed({ rows, mode, queue, hours }) {
+export function buildRecapEmbed({ rows, mode, game = GAME_TYPES.TFT, queue, hours }) {
   const totalGames = rows.reduce((s, r) => s + r.games, 0);
 
   const gains = sortByGains(rows);
@@ -102,7 +102,7 @@ export function buildRecapEmbed({ rows, mode, queue, hours }) {
       { name: "Top losses", value: lossesText, inline: true }
     )
     .setFooter({
-      text: `${rows.length} players | ${totalGames} games • ${queueLabel(queue)} • last ${hours}h`,
+      text: `${rows.length} players | ${totalGames} games • ${queueLabel(game, queue)} • last ${hours}h`,
     })
     .setTimestamp(new Date());
 }

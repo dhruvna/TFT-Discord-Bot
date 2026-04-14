@@ -6,7 +6,7 @@ import {
   computeRecapRows,
   hoursForMode,
 } from "../utils/recap.js";
-import { RANKED_QUEUE_CHOICES } from "../constants/queues.js";
+import { GAME_TYPES, RANKED_QUEUE_CHOICES } from "../constants/queues.js";
 import { RECAP_MODE_CHOICES } from "../constants/recap.js";
 
 /* -------------------- Command -------------------- */
@@ -51,7 +51,7 @@ export default {
         console.log(
             `[recap] guild=${guildId} mode=${mode} queue=${queue} accounts=${accounts.length} cutoff=${new Date(cutoff).toISOString()}`
         );
-        const embed = buildRecapEmbed({ rows, mode, queue, hours });
+        const embed = buildRecapEmbed({ rows, mode, game: GAME_TYPES.TFT, queue, hours });
         
         await interaction.editReply({ embeds: [embed] });
     },

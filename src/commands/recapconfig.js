@@ -1,7 +1,7 @@
 // src/commands/recapconfig.js
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { loadDb, getGuildRecapConfig, setGuildRecapConfigInStore } from "../storage.js";
-import { RANKED_QUEUE_CHOICES, queueLabel } from "../constants/queues.js";
+import { GAME_TYPES, RANKED_QUEUE_CHOICES, queueLabel } from "../constants/queues.js";
 import { RECAP_MODE_CHOICES, formatRecapScheduleTime, modeLabel } from "../constants/recap.js";
 import config from "../config.js";
 
@@ -62,7 +62,7 @@ export default {
         content:
           `**Recap autopost status**\n` +
           `• Enabled: **${cfg.enabled ? "Yes" : "No"}**\n` +
-          `• Queue: **${queueLabel(cfg.queue)}**\n` +
+          `• Queue: **${queueLabel(GAME_TYPES.TFT, cfg.queue)}**\n` +
           `• Mode: **${modeLabel(cfg.mode)}**\n` +
           `• Time: **${scheduleText}**\n` +
           `• Last sent: ${cfg.lastSentYmd ?? "—"}`,
@@ -97,7 +97,7 @@ export default {
 
     await interaction.reply({
       content: enabled
-        ? `✅ Autopost enabled: **${queueLabel(updated.queue)}** • **${modeLabel(updated.mode)}** • posts at **${scheduleText}**`
+        ? `✅ Autopost enabled: **${queueLabel(GAME_TYPES.TFT, updated.queue)}** • **${modeLabel(updated.mode)}** • posts at **${scheduleText}**`
         : `🛑 Autopost disabled.`,
       ephemeral: true,
     });

@@ -1,49 +1,80 @@
-// === Queue constants ===
-// Centralize queue identifiers so comparisons are consistent across the codebase.
-export const QUEUE_TYPES = Object.freeze({
-    NORMAL_TFT: "NORMAL_TFT",
-    RANKED_TFT: "RANKED_TFT",
-    RANKED_TFT_DOUBLE_UP: "RANKED_TFT_DOUBLE_UP",
-    UNKNOWN: "UNKNOWN",
+// === Game + queue constants ===
+// Keep queue identifiers scoped by game so semantics stay explicit.
+
+export const GAME_TYPES = Object.freeze({
+    TFT: "TFT",
+    LOL: "LOL",
 });
 
-// Human-friendly labels for UI responses and embeds.
-export const QUEUE_LABELS = Object.freeze({
-    [QUEUE_TYPES.NORMAL_TFT]: "Normal",
-    [QUEUE_TYPES.RANKED_TFT]: "Ranked",
-    [QUEUE_TYPES.RANKED_TFT_DOUBLE_UP]: "Double Up",
-    [QUEUE_TYPES.UNKNOWN]: "Unknown",
+export const TFT_QUEUE_TYPES = Object.freeze({
+    NORMAL: "NORMAL_TFT",
+    RANKED: "RANKED_TFT",
+    RANKED_DOUBLE_UP: "RANKED_TFT_DOUBLE_UP",
+    UNKNOWN: "UNKNOWN_TFT",
 });
 
-// The queues that count as ranked for filtering and recap logic.
-export const RANKED_QUEUES = new Set([
-    QUEUE_TYPES.RANKED_TFT,
-    QUEUE_TYPES.RANKED_TFT_DOUBLE_UP,
-]);
+export const LOL_QUEUE_TYPES = Object.freeze({
+    RANKED_SOLO_DUO: "RANKED_SOLO_DUO",
+    RANKED_FLEX: "RANKED_FLEX",
+    UNKNOWN: "UNKNOWN_LOL",
+});
+
+// Backward compatibility alias; prefer TFT_QUEUE_TYPES in new code.
+export const QUEUE_TYPES = TFT_QUEUE_TYPES;
+
+const QUEUE_LABELS_BY_GAME = Object.freeze({
+    [GAME_TYPES.TFT]: Object.freeze({
+        [TFT_QUEUE_TYPES.NORMAL]: "Normal",
+        [TFT_QUEUE_TYPES.RANKED]: "Ranked",
+        [TFT_QUEUE_TYPES.RANKED_DOUBLE_UP]: "Double Up",
+        [TFT_QUEUE_TYPES.UNKNOWN]: "Unknown",
+    }),
+    [GAME_TYPES.LOL]: Object.freeze({
+        [LOL_QUEUE_TYPES.RANKED_SOLO_DUO]: "Ranked Solo/Duo",
+        [LOL_QUEUE_TYPES.RANKED_FLEX]: "Ranked Flex",
+        [LOL_QUEUE_TYPES.UNKNOWN]: "Unknown",
+    }),
+});
+
+const RANKED_QUEUES_BY_GAME = Object.freeze({
+    [GAME_TYPES.TFT]: new Set([
+        TFT_QUEUE_TYPES.RANKED,
+        TFT_QUEUE_TYPES.RANKED_DOUBLE_UP,
+    ]),
+    [GAME_TYPES.LOL]: new Set([
+        LOL_QUEUE_TYPES.RANKED_SOLO_DUO,
+        LOL_QUEUE_TYPES.RANKED_FLEX,
+    ]),
+});
+
+// Backward compatibility set used by existing rank snapshot/register flows.
+export const RANKED_QUEUES = RANKED_QUEUES_BY_GAME[GAME_TYPES.TFT];
 
 // Default queues to announce when a user has not customized their settings.
 export const DEFAULT_ANNOUNCE_QUEUES = [
-    QUEUE_TYPES.RANKED_TFT,
-    QUEUE_TYPES.RANKED_TFT_DOUBLE_UP,
+    TFT_QUEUE_TYPES.RANKED,
+    TFT_QUEUE_TYPES.RANKED_DOUBLE_UP,
 ];
 
 // Discord choice objects for slash command options.
 export const RANKED_QUEUE_CHOICES = [
-    { name: "Ranked", value: QUEUE_TYPES.RANKED_TFT },
-    { name: "Double Up", value: QUEUE_TYPES.RANKED_TFT_DOUBLE_UP },
+    { name: "Ranked", value: TFT_QUEUE_TYPES.RANKED },
+    { name: "Double Up", value: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP },
 ];
 
 // === Queue helpers ===
 // Provide a single spot to adjust labeling or ranked logic later.
-export function queueLabel(queueType) {
-    if (!queueType) return "TFT";
-    return QUEUE_LABELS[queueType] ?? queueType;
+export function queueLabel(game, queueType) {
+    if (!queueType) return game === GAME_TYPES.LOL ? "LoL" : "TFT";
+    const labels = QUEUE_LABELS_BY_GAME[game] ?? {};
+    return labels[queueType] ?? queueType;
 }
 
-export function isRankedQueue(queueType) {
-    return RANKED_QUEUES.has(queueType);
+export function isRankedQueue(game, queueType) {
+    const ranked = RANKED_QUEUES_BY_GAME[game];
+    return ranked ? ranked.has(queueType) : false;
 }
 
 export function isDoubleUpQueue(queueType) {
-    return queueType === QUEUE_TYPES.RANKED_TFT_DOUBLE_UP;
+    return queueType === TFT_QUEUE_TYPES.RANKED_DOUBLE_UP;
 }

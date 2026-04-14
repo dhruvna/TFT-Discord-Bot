@@ -4,7 +4,8 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { listGuildAccounts } from '../storage.js';
 
 import {
-  QUEUE_TYPES,
+  GAME_TYPES,
+  TFT_QUEUE_TYPES,
   RANKED_QUEUE_CHOICES,
   queueLabel,
 } from "../constants/queues.js";
@@ -88,7 +89,7 @@ export default {
 
     await interaction.deferReply();
 
-    const queueType = interaction.options.getString("queue") || QUEUE_TYPES.RANKED_TFT;
+    const queueType = interaction.options.getString("queue") || TFT_QUEUE_TYPES.RANKED;
     const limit = interaction.options.getInteger("limit") ?? 15;
 
     const accounts = await listGuildAccounts(guildId);
@@ -112,7 +113,7 @@ export default {
     // Limit output so the embed stays readable.
     const shown = ranked.slice(0, limit);
     
-    const queueLabelText = queueLabel(queueType);
+    const queueLabelText = queueLabel(GAME_TYPES.TFT, queueType);
 
     // Build the human-readable lines shown in the embed.
     const lines = shown.map((r, i) => {

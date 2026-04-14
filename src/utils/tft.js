@@ -8,7 +8,8 @@ import {
 } from "../riot.js";
 import { buildUnitStripImage } from "./unitStrip.js";
 import {
-  QUEUE_TYPES,
+  GAME_TYPES,
+  TFT_QUEUE_TYPES,
   isRankedQueue,
   queueLabel,
 } from "../constants/queues.js";
@@ -35,30 +36,30 @@ export function detectQueueMetaFromMatch(match) {
         return {
             queueId,
             mode: "NORMAL",
-            queueType: QUEUE_TYPES.NORMAL_TFT,
-            label: queueLabel(QUEUE_TYPES.NORMAL_TFT),
+            queueType: TFT_QUEUE_TYPES.NORMAL,
+            label: queueLabel(GAME_TYPES.TFT, TFT_QUEUE_TYPES.NORMAL),
         };
     }
     if (queueId === 1100) {
         return { queueId, 
             mode: "RANKED", 
-            queueType: QUEUE_TYPES.RANKED_TFT, 
-            label: queueLabel(QUEUE_TYPES.RANKED_TFT) 
+            queueType: TFT_QUEUE_TYPES.RANKED, 
+            label: queueLabel(GAME_TYPES.TFT, TFT_QUEUE_TYPES.RANKED) 
         };
     }
     if (queueId === 1160) {
         return { queueId, 
             mode: "DOUBLE UP (Workshop)", 
-            queueType: QUEUE_TYPES.RANKED_TFT_DOUBLE_UP, 
-            label: queueLabel(QUEUE_TYPES.RANKED_TFT_DOUBLE_UP) 
+            queueType: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP, 
+            label: queueLabel(GAME_TYPES.TFT, TFT_QUEUE_TYPES.RANKED_DOUBLE_UP) 
         };
     }
     
     return {
         queueId,
         mode: "UNKNOWN",
-        queueType: QUEUE_TYPES.UNKNOWN,
-        label: queueLabel(QUEUE_TYPES.UNKNOWN),
+        queueType: TFT_QUEUE_TYPES.UNKNOWN,
+        label: queueLabel(GAME_TYPES.TFT, TFT_QUEUE_TYPES.UNKNOWN),
     };
 }
 
@@ -66,7 +67,7 @@ export function detectQueueMetaFromMatch(match) {
 export function normalizePlacement({ placement, queueType}) {
     if (typeof placement !== "number" || placement < 1 || placement > 8) return null;
 
-    if (queueType === "RANKED_TFT_DOUBLE_UP") {
+    if (queueType === TFT_QUEUE_TYPES.RANKED_DOUBLE_UP) {
         return Math.ceil(placement / 2); //
     } 
 
@@ -92,7 +93,7 @@ export function placementToOrdinal(placement) {
 
 // Wrap queue label helper for semantic clarity at call sites.
 export function labelForQueueType(queueType) {
-    return queueLabel(queueType);
+    return queueLabel(GAME_TYPES.TFT, queueType);
 }
 
 // === Embed construction ===
@@ -113,7 +114,7 @@ export async function buildMatchResultEmbed({
     const p = typeof placement === "number" ? placement : null;
     const d = typeof delta === "number" ? delta : 0;
 
-    const isRanked = isRankedQueue(queueType);
+    const isRanked = isRankedQueue(GAME_TYPES.TFT, queueType);
     
     const isWin = p !== null && p <= 4;
     const isLoss = p !== null && p >= 5;

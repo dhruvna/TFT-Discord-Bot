@@ -6,7 +6,7 @@ import { loadDb, pruneExpiredRecapEventsInStore } from './storage.js';
 import { startRecapAutoposter } from './services/recapAutoPoster.js';
 import { startMatchPoller } from './services/matchPoller.js';
 import config from './config.js';
-import { QUEUE_TYPES } from './constants/queues.js';
+import { TFT_QUEUE_TYPES } from './constants/queues.js';
 import { getRankSnapshotForQueue } from './utils/rankSnapshot.js';
 import { loadCommands } from './commands/loadCommands.js';
 
@@ -60,7 +60,7 @@ client.once('clientReady', async () => {
         for (const [gid, g] of Object.entries(db)) {
             const accounts = g?.accounts ?? [];
             const rankedSnapshots = accounts.filter((account) =>
-                getRankSnapshotForQueue(account, QUEUE_TYPES.RANKED_TFT)?.tier).length;
+                getRankSnapshotForQueue(account, TFT_QUEUE_TYPES.RANKED)?.tier).length;
             console.log(
                 `[startup] guild=${gid} channelId=${g?.channelId ?? "null"} accounts=${accounts.length} rankedSnapshots=${rankedSnapshots} recap=${JSON.stringify(
                         g?.recap ?? null
