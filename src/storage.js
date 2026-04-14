@@ -260,3 +260,34 @@ export function pruneExpiredRecapEventsInDb(db, nowMs = Date.now()) {
 export async function pruneExpiredRecapEventsInStore(nowMs = Date.now()) {
     return mutateDb((db) => pruneExpiredRecapEventsInDb(db, nowMs));
 }
+
+export async function resetGuildAccountProgressInStore(guildId) {
+    return mutateGuild(guildId, ({ guild }) => {
+        const accounts = Array.isArray(guild?.accounts) ? guild.accounts : [];
+        if (accounts.length === 0) {
+            return { didChange: false, totalAccounts: 0, resetAccounts: 0 };
+        }
+
+        let resetAccounts = 0;
+
+        for (const account of accounts) {
+            const hadLastMatchId = Boolean(account?.lastMatchId);
+            const hadRankSnapshot = account?.lastRankByQueue && Object.keys(account.lastRankByQueue).length > 0;
+            const hadRecapEvents = Array.isArray(account?.recapEvents) && account.recapEvents.length > 0;
+
+            account.lastMatchId = null;
+            account.lastRankByQueue = {};
+            account.recapEvents = [];
+
+            if (hadLastMatchId || hadRankSnapshot || hadRecapEvents) {
+                resetAccounts += 1;
+            }
+        }
+
+        return {
+            didChange: resetAccounts > 0,
+            totalAccounts: accounts.length,
+            resetAccounts,
+        };
+    });
+}

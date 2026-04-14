@@ -63,12 +63,64 @@ export async function getTFTMatch({ regional, matchId, limiter }) {
     return riotFetchJson(url, 'TFT', limiter);
 }
 
+export async function getLolRankByPuuid({ platform, puuid, limiter }) {
+    const url = `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`;
+    return riotFetchJson(url, 'LOL', limiter);
+}
+
+export async function getLolMatchIdsByPuuid({
+    regional,
+    puuid,
+    count = 1,
+    start = 0,
+    queue,
+    type,
+    limiter,
+}) {
+    const safeCount = Math.max(1, Math.min(Number(count) || 1, 100));
+    const safeStart = Math.max(0, Number(start) || 0);
+    const params = new URLSearchParams({
+        count: String(safeCount),
+        start: String(safeStart),
+    });
+
+    if (queue !== undefined && queue !== null) {
+        const safeQueue = Number(queue);
+        if (Number.isFinite(safeQueue)) {
+            params.set('queue', String(safeQueue));
+        }
+    }
+
+    if (type) {
+        params.set('type', String(type));
+    }
+
+    const url = `https://${regional}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(
+        puuid
+    )}/ids?${params.toString()}`;
+
+    return riotFetchJson(url, 'LOL', limiter);
+}
+
+export async function getLolMatch({ regional, matchId, limiter }) {
+    const url = `https://${regional}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`;
+    return riotFetchJson(url, 'LOL', limiter);
+}
+
 export function getLeagueOfGraphsUrl({ region = 'NA', gameName, tagLine }) {
     const shard = String(region || 'NA').toLowerCase();
     const encodedName = encodeURIComponent(gameName);
     const encodedTag = encodeURIComponent(tagLine);
     return `https://www.leagueofgraphs.com/tft/summoner/${shard}/${encodedName}-${encodedTag}`;
 }
+
+export function getLolProfileUrl({ region = 'NA', gameName, tagLine }) {
+    const shard = String(region || 'NA').toLowerCase();
+    const encodedName = encodeURIComponent(gameName);
+    const encodedTag = encodeURIComponent(tagLine);
+    return `https://www.leagueofgraphs.com/summoner/${shard}/${encodedName}-${encodedTag}`;
+}
+
 
 function platformToLoGShard(platformPrefix) {
     return platformPrefix.toLowerCase().replace(/\d+$/, '');
@@ -79,4 +131,11 @@ export function getTFTMatchUrl({ matchId }) {
     const [platformPrefix, numericId] = matchId.split('_');
     const shard = platformToLoGShard(platformPrefix || 'NA');
     return `https://www.leagueofgraphs.com/tft/match/${shard}/${numericId}`;
+}
+
+export function getLolMatchUrl({ matchId }) {
+    if (!matchId || !matchId.includes('_')) return null;
+    const [platformPrefix, numericId] = matchId.split('_');
+    const shard = platformToLoGShard(platformPrefix || 'NA');
+    return `https://www.leagueofgraphs.com/match/${shard}/${numericId}`;
 }

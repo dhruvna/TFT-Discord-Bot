@@ -4,8 +4,13 @@ export {
     getTFTRankByPuuid,
     getTFTMatchIdsByPuuid,
     getTFTMatch,
+    getLolRankByPuuid,
+    getLolMatchIdsByPuuid,
+    getLolMatch,
     getLeagueOfGraphsUrl,
+    getLolProfileUrl,
     getTFTMatchUrl,
+    getLolMatchUrl,
 } from './riot/api.js';
 
 export {
