@@ -118,13 +118,13 @@ export default {
             puuid: account.puuid,
             trackedGames: {
                 tft: {
-                    lastMatchId: null,
-                    lastRankByQueue: {},
+                    lastMatchId,
+                    lastRankByQueue,
                     recapEvents: [],
                 },
                 lol: {
-                    lastMatchId: null,
-                    lastRankByQueue: {},
+                    lastMatchId,
+                    lastRankByQueue,
                     recapEvents: [],
                 },
             },

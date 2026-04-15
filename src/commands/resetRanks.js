@@ -47,7 +47,7 @@ export default {
                 `Reset complete for this server.\n` +
                 `• Accounts registered: **${result.totalAccounts}**\n` +
                 `• Accounts with progress cleared: **${result.resetAccounts}**\n\n` +
-                `Cleared fields: \'lastRankByQueue\', \'recapEvents\', and \'lastMatchId\'.`,
+                `Cleared trackedGames.tft fields: 'lastRankByQueue', 'recapEvents', and 'lastMatchId'.`,
             ephemeral: true,
         });
     },

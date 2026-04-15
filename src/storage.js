@@ -182,6 +182,10 @@ export function normalizeAccountTracking(account) {
         [TRACKED_GAMES.LOL]: lolTracked,
     };
 
+    if ('lastMatchId' in account) delete account.lastMatchId;
+    if ('lastRankByQueue' in account) delete account.lastRankByQueue;
+    if ('recapEvents' in account) delete account.recapEvents;
+
     return account;
 }
 
@@ -345,13 +349,15 @@ export async function resetGuildAccountProgressInStore(guildId) {
         let resetAccounts = 0;
 
         for (const account of accounts) {
-            const hadLastMatchId = Boolean(account?.lastMatchId);
-            const hadRankSnapshot = account?.lastRankByQueue && Object.keys(account.lastRankByQueue).length > 0;
-            const hadRecapEvents = Array.isArray(account?.recapEvents) && account.recapEvents.length > 0;
+            const tftTracking = getTftTracking(account);
+            const hadLastMatchId = Boolean(tftTracking?.lastMatchId);
+            const hadRankSnapshot = 
+                tftTracking?.lastRankByQueue && Object.keys(tftTracking.lastRankByQueue).length > 0;
+            const hadRecapEvents = Array.isArray(tftTracking?.recapEvents) && tftTracking.recapEvents.length > 0;
 
-            account.lastMatchId = null;
-            account.lastRankByQueue = {};
-            account.recapEvents = [];
+            tftTracking.lastMatchId = null;
+            tftTracking.lastRankByQueue = {};
+            tftTracking.recapEvents = [];
 
             if (hadLastMatchId || hadRankSnapshot || hadRecapEvents) {
                 resetAccounts += 1;
