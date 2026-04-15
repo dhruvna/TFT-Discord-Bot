@@ -1,7 +1,14 @@
 // === Imports ===
 // This service orchestrates polling Riot for match updates and sending Discord updates.
 
-import { getKnownGuildIds, getTftTracking, loadDb, normalizeAccountTracking, upsertGuildAccountInStore } from '../storage.js';
+import {
+    getGuildTftConfig,
+    getKnownGuildIds,
+    getTftTracking,
+    loadDb,
+    normalizeAccountTracking,
+    upsertGuildAccountInStore,
+} from '../storage.js';
 import { getTFTMatch, getTFTMatchIdsByPuuid, getTFTRankByPuuid } from '../riot.js';
 
 import {
@@ -234,6 +241,9 @@ export async function startMatchPoller(client) {
                 const guild = db[guildId];
                 const accounts = guild?.accounts ?? [];
                 const channelIdForGuild = guild?.channelId ;
+                const guildTftConfig = getGuildTftConfig(db, guildId);
+                const seasonCutoffMs = Number(guildTftConfig?.seasonCutoffMs ?? 0);
+                const hasSeasonCutoff = Number.isFinite(seasonCutoffMs) && seasonCutoffMs > 0;
 
                 let channel = null;
                 if (channelIdForGuild) {
@@ -304,6 +314,7 @@ export async function startMatchPoller(client) {
                     const announceQueues = guild?.announceQueues ?? DEFAULT_ANNOUNCE_QUEUES;
                     let recapEvents = Array.isArray(tftTracking.recapEvents) ? tftTracking.recapEvents : [];
                     let lastProcessedMatchId = tftTracking.lastMatchId;
+                    let lastProcessedMatchAt = Number(tftTracking.lastMatchAt ?? 0) || null;
 
                     const preparedMatches = [];
                     for (const matchId of orderedMatchIds) {
@@ -319,7 +330,8 @@ export async function startMatchPoller(client) {
                         const queueType = meta.queueType || TFT_QUEUE_TYPES.RANKED;
                         const isRanked = isRankedQueue(GAME_TYPES.TFT, queueType);
                         const normPlacement = normalizePlacement({ placement, queueType }); 
-                        
+                        const gameMs = Number(match?.info?.game_datetime ?? 0) || Date.now();
+
                         preparedMatches.push({
                             match,
                             matchId,
@@ -327,12 +339,17 @@ export async function startMatchPoller(client) {
                             normPlacement,
                             queueType,
                             isRanked,
+                            gameMs,
                         });
                     }
 
                     let latestRankedIndex = -1;
                     for (let i = preparedMatches.length - 1; i >= 0; i -= 1) {
                         if (preparedMatches[i].isRanked) {
+                            const gameMs = Number(preparedMatches[i].gameMs ?? 0);
+                            if (hasSeasonCutoff && Number.isFinite(gameMs) && gameMs > 0 && gameMs < seasonCutoffMs) {
+                                continue;
+                            }
                             latestRankedIndex = i;
                             break;
                         }
@@ -346,7 +363,23 @@ export async function startMatchPoller(client) {
                             normPlacement,
                             queueType,
                             isRanked,
+                            gameMs,
                         } = prepared;
+                        const isBeforeSeasonCutoff =
+                            hasSeasonCutoff &&
+                            Number.isFinite(gameMs) &&
+                            gameMs > 0 &&
+                            gameMs < seasonCutoffMs;
+
+                        if (isBeforeSeasonCutoff) {
+                            console.log(
+                                `[match-poller] skipping stale pre-cutoff match guild=${guildId} account=${account.key} match=${matchId} gameMs=${gameMs} cutoffMs=${seasonCutoffMs}`
+                            );
+                            lastProcessedMatchId = matchId;
+                            lastProcessedMatchAt = gameMs;
+                            continue;
+                        }
+
                         const isLatestRankedMatch = index === latestRankedIndex;
                         if (isLatestRankedMatch) {
                         // // Only refresh rank once, for the latest ranked match.
@@ -362,10 +395,9 @@ export async function startMatchPoller(client) {
                         
                         const afterRank = isLatestRankedMatch ? (after?.[queueType] ?? null) : null;
                         const delta = isLatestRankedMatch ? (deltas?.[queueType] ?? 0) : 0;
-                        
+                    
                         // Capture recap data independently of announcement filtering.
                         if (isRanked) {
-                            const gameMs = match.info.game_datetime ?? Date.now();
                             recapEvents = buildRecapEvents({
                                 recapEvents,
                                 matchId,
@@ -381,6 +413,7 @@ export async function startMatchPoller(client) {
                                 `[match-poller] skipping announcement for guild=${guildId} account=${account.key} match=${matchId} queue=${queueType} (not in announceQueues)`
                             );
                             lastProcessedMatchId = matchId;
+                            lastProcessedMatchAt = gameMs;
                             continue;
                         }
                     
@@ -403,6 +436,7 @@ export async function startMatchPoller(client) {
                         });
 
                         lastProcessedMatchId = matchId;
+                        lastProcessedMatchAt = gameMs;
                     }
 
                     await upsertGuildAccountInStore(guildId, {
@@ -413,6 +447,7 @@ export async function startMatchPoller(client) {
                                 ...tftTracking,
                                 // Persist lastMatchId so we only announce new games.
                                 lastMatchId: lastProcessedMatchId,
+                                lastMatchAt: lastProcessedMatchAt,
                                 lastRankByQueue: after,
                                 recapEvents,
                             },

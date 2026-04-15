@@ -47,9 +47,16 @@ Current behavior:
   - Current rank
   - Match link (LeagueOfGraphs)
 
+## Seasonal Reset Support
+- `/resetranks confirm:true` clears TFT rank snapshots + recap history for the server.
+- `/resetranks confirm:true before_date:YYYY-MM-DD` clears only accounts whose latest tracked TFT match happened **before** that UTC date and stores the season cutoff in `registrations.json` for ongoing polling.
+- By default reset keeps `lastMatchId` / `lastMatchAt` so old games are not replayed; use `clear_match_cursor:true` only if you intentionally want a full cursor wipe.
+
 # TODO
 ### Leaderboard
-- Server leaderboard by rank/LP
+- patch notes
+- Host bot 24/7
+- LoL support
 
 ### Match History / Detail Commands
 - `/lastmatch` command
@@ -122,9 +129,9 @@ Live Match Tracking
 ![Day 6 Leaderboard Progress](images/Leaderboard_Day6_Progress.png)
 ![Day 7 Recap Progress](images/Recap_Day7_Progress.png)
 
-TODO
-- Host bot 24/7
-- LoL support
+**2/7/2026 - 2/12/2026**
+- 
+
 
 # Project Structure
 

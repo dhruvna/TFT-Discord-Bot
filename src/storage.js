@@ -109,6 +109,16 @@ function ensureGuild(db, guildId) {
         db[guildId].messageProfile = 'neutral';
     }
 
+    if (!('tft' in db[guildId]) || typeof db[guildId].tft !== 'object' || db[guildId].tft === null) {
+        db[guildId].tft = {
+            seasonCutoffMs: null,
+        };
+    } else {
+        const numericCutoff = Number(db[guildId].tft.seasonCutoffMs ?? 0);
+        db[guildId].tft.seasonCutoffMs =
+            Number.isFinite(numericCutoff) && numericCutoff > 0 ? numericCutoff : null;
+    }
+
     if (!('recap' in db[guildId]) || typeof db[guildId].recap !== 'object' || db[guildId].recap === null) {
         db[guildId].recap = {
             enabled: false,
@@ -144,11 +154,21 @@ function readLegacyLastMatchId(account) {
     return account?.lastMatchId ?? null;
 }
 
-function normalizeTrackedGameNamespace(gameState, { fallbackLastMatchId = null, fallbackLastRankByQueue = {}, fallbackRecapEvents = [] } = {}) {
+function normalizeTrackedGameNamespace(
+    gameState,
+    {
+        fallbackLastMatchId = null,
+        fallbackLastMatchAt = null,
+        fallbackLastRankByQueue = {},
+        fallbackRecapEvents = [],
+    } = {}
+) {
     const safeGameState = gameState && typeof gameState === 'object' ? gameState : {};
+    const numericLastMatchAt = Number(safeGameState.lastMatchAt ?? fallbackLastMatchAt ?? 0);
     return {
         ...safeGameState,
         lastMatchId: safeGameState.lastMatchId ?? fallbackLastMatchId,
+        lastMatchAt: Number.isFinite(numericLastMatchAt) && numericLastMatchAt > 0 ? numericLastMatchAt : null,
         lastRankByQueue:
             safeGameState.lastRankByQueue && typeof safeGameState.lastRankByQueue === 'object'
                 ? safeGameState.lastRankByQueue
@@ -166,12 +186,14 @@ export function normalizeAccountTracking(account) {
 
     const tftTracked = normalizeTrackedGameNamespace(trackedGames[TRACKED_GAMES.TFT], {
         fallbackLastMatchId: readLegacyLastMatchId(account),
+        fallbackLastMatchAt: null,
         fallbackLastRankByQueue: readLegacyRankByQueue(account),
         fallbackRecapEvents: readLegacyRecapEvents(account),
     });
 
     const lolTracked = normalizeTrackedGameNamespace(trackedGames[TRACKED_GAMES.LOL], {
         fallbackLastMatchId: null,
+        fallbackLastMatchAt: null,
         fallbackLastRankByQueue: {},
         fallbackRecapEvents: [],
     });
@@ -255,6 +277,11 @@ export function getGuildRecapConfig(db, guildId) {
     return g.recap;
 }
 
+export function getGuildTftConfig(db, guildId) {
+    const g = ensureGuild(db, guildId);
+    return g.tft;
+}
+
 export function setGuildRecapConfig(db, guildId, patch) {
     const g = ensureGuild(db, guildId);
     g.recap = { ...g.recap, ...patch };
@@ -277,6 +304,27 @@ export async function setGuildRecapLastSentYmdInStore(guildId, lastSentYmd) {
         guild.recap.lastSentYmd = lastSentYmd;
         return { didChange: true, updated: true };
     }).then((result) => result?.updated ?? false);
+}
+
+export async function setGuildTftConfigInStore(guildId, patch) {
+    return mutateGuild(guildId, ({ guild }) => {
+        const current = guild?.tft && typeof guild.tft === 'object'
+            ? guild.tft
+            : { seasonCutoffMs: null };
+        const nextCutoff = Number(patch?.seasonCutoffMs ?? 0);
+        const normalizedPatch = {
+            ...patch,
+            seasonCutoffMs: Number.isFinite(nextCutoff) && nextCutoff > 0 ? nextCutoff : null,
+        };
+        const next = { ...current, ...normalizedPatch };
+
+        if (JSON.stringify(next) === JSON.stringify(current)) {
+            return { didChange: false, tft: current };
+        }
+
+        guild.tft = next;
+        return { didChange: true, tft: next };
+    }).then((result) => result?.tft ?? null);
 }
 
 async function setGuildQueueConfig(db, guildId, queues) {
@@ -340,6 +388,12 @@ export async function pruneExpiredRecapEventsInStore(nowMs = Date.now()) {
 }
 
 export async function resetGuildAccountProgressInStore(guildId) {
+    return resetGuildAccountProgressBeforeInStore(guildId, null);
+}
+
+export async function resetGuildAccountProgressBeforeInStore(guildId, cutoffMs, options = {}) {
+    const hasCutoff = Number.isFinite(cutoffMs) && cutoffMs > 0;
+    const clearMatchCursor = options?.clearMatchCursor === true;
     return mutateGuild(guildId, ({ guild }) => {
         const accounts = Array.isArray(guild?.accounts) ? guild.accounts : [];
         if (accounts.length === 0) {
@@ -347,19 +401,36 @@ export async function resetGuildAccountProgressInStore(guildId) {
         }
 
         let resetAccounts = 0;
+        let skippedAccounts = 0;
 
         for (const account of accounts) {
             const tftTracking = getTftTracking(account);
+            const lastMatchAt = Number(tftTracking?.lastMatchAt ?? 0);
+            const shouldResetForCutoff =
+                !hasCutoff ||
+                !Number.isFinite(lastMatchAt) ||
+                lastMatchAt <= 0 ||
+                lastMatchAt < cutoffMs;
+            if (!shouldResetForCutoff) {
+                skippedAccounts += 1;
+                continue;
+            }
+
             const hadLastMatchId = Boolean(tftTracking?.lastMatchId);
             const hadRankSnapshot = 
                 tftTracking?.lastRankByQueue && Object.keys(tftTracking.lastRankByQueue).length > 0;
             const hadRecapEvents = Array.isArray(tftTracking?.recapEvents) && tftTracking.recapEvents.length > 0;
+            const hadMatchCursor = Boolean(tftTracking?.lastMatchId) || Number(tftTracking?.lastMatchAt ?? 0) > 0;
 
-            tftTracking.lastMatchId = null;
+            if (clearMatchCursor) {
+                tftTracking.lastMatchId = null;
+                tftTracking.lastMatchAt = null;
+            }
+
             tftTracking.lastRankByQueue = {};
             tftTracking.recapEvents = [];
 
-            if (hadLastMatchId || hadRankSnapshot || hadRecapEvents) {
+            if (hadLastMatchId || hadRankSnapshot || hadRecapEvents || (clearMatchCursor && hadMatchCursor)) {
                 resetAccounts += 1;
             }
         }
@@ -368,6 +439,9 @@ export async function resetGuildAccountProgressInStore(guildId) {
             didChange: resetAccounts > 0,
             totalAccounts: accounts.length,
             resetAccounts,
+            skippedAccounts,
+            cutoffMs: hasCutoff ? cutoffMs : null,
+            clearMatchCursor,
         };
     });
 }

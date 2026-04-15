@@ -2,6 +2,7 @@ import { SlashCommandBuilder } from "discord.js";
 
 import {
     getAccountByRiotId,
+    getTFTMatch,
     getTFTRankByPuuid,
     getTFTMatchIdsByPuuid,
     resolveRegion,
@@ -95,9 +96,15 @@ export default {
         
         // 7. Snapshot latest match ID, for use in game tracking
         let lastMatchId = null;
+        let lastMatchAt = null;
         try {
             const ids = await getTFTMatchIdsByPuuid({ regional, puuid: account.puuid, count: 1 });
             lastMatchId = Array.isArray(ids) && ids.length > 0 ? ids[0] : null;
+            if (lastMatchId) {
+                const latestMatch = await getTFTMatch({ regional, matchId: lastMatchId });
+                const gameDatetime = Number(latestMatch?.info?.game_datetime ?? 0);
+                lastMatchAt = Number.isFinite(gameDatetime) && gameDatetime > 0 ? gameDatetime : null;
+            }
         } catch (err) {
             const status = err?.status;
             console.error(
@@ -105,6 +112,7 @@ export default {
                 err?.responseText ? { responseText: err.responseText } : err
             );
             lastMatchId = null;
+            lastMatchAt = null;
         }
 
         // 8. Build stored record
@@ -119,12 +127,14 @@ export default {
             trackedGames: {
                 tft: {
                     lastMatchId,
+                    lastMatchAt,
                     lastRankByQueue,
                     recapEvents: [],
                 },
                 lol: {
-                    lastMatchId,
-                    lastRankByQueue,
+                    lastMatchId: null,
+                    lastMatchAt: null,
+                    lastRankByQueue: {},
                     recapEvents: [],
                 },
             },

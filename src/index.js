@@ -64,7 +64,7 @@ client.once('clientReady', async () => {
             console.log(
                 `[startup] guild=${gid} channelId=${g?.channelId ?? "null"} accounts=${accounts.length} rankedSnapshots=${rankedSnapshots} recap=${JSON.stringify(
                         g?.recap ?? null
-                    )}`
+                    )} tft=${JSON.stringify(g?.tft ?? null)}`
                 );
         }
     } catch (e) {
