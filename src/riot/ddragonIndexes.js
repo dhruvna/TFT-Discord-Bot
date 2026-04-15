@@ -8,10 +8,12 @@ import {
 function createLookupIndex({ loadDataset, normalizeEntryId = (id) => id }) {
     let nameById = null;
     let imageById = null;
+    let cachedVersion = null;
 
     async function loadIndexes() {
-        if (nameById && imageById) {
-            return { nameById, imageById };
+        const latestVersion = await getLatestDDragonVersion();
+        if (nameById && imageById && cachedVersion === latestVersion) {
+            return { nameById, imageById, version: cachedVersion };
         }
 
         const dataset = await loadDataset();
@@ -32,7 +34,8 @@ function createLookupIndex({ loadDataset, normalizeEntryId = (id) => id }) {
 
         nameById = nextNameById;
         imageById = nextImageById;
-        return { nameById, imageById };
+        cachedVersion = latestVersion;
+        return { nameById, imageById, version: cachedVersion };
     }
 
     return {
@@ -45,10 +48,9 @@ function createLookupIndex({ loadDataset, normalizeEntryId = (id) => id }) {
         async getImageById(id, imageFolder) {
             const key = normalizeEntryId(id);
             if (!key) return null;
-            const { imageById: map } = await loadIndexes();
+            const { imageById: map, version } = await loadIndexes();
             const file = map.get(key);
             if (!file) return null;
-            const version = await getLatestDDragonVersion();
             return `https://ddragon.leagueoflegends.com/cdn/${version}/img/${imageFolder}/${file}`;
         },
     };

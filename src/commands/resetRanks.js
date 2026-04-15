@@ -94,7 +94,6 @@ export default {
                 `• Accounts registered: **${result.totalAccounts}**\n` +
                 `• Accounts with progress cleared: **${result.resetAccounts}**\n\n` +
                 `${beforeDate ? `• Accounts skipped (recent match on/after cutoff): **${result.skippedAccounts ?? 0}**\n\n` : ""}` +
-                `${beforeDate ? `• Accounts skipped (recent match on/after cutoff): **${result.skippedAccounts ?? 0}**\n\n` : ""}` +
                 `${beforeDate ? `Saved guild TFT season cutoff to **${beforeDate} 00:00:00 UTC** for future polling.\n` : ""}` +
                 `Cleared trackedGames.tft fields: 'lastRankByQueue' and 'recapEvents'` +
                 `${clearMatchCursor ? ", plus 'lastMatchId' and 'lastMatchAt'." : ". (Kept 'lastMatchId' and 'lastMatchAt' to avoid replaying old matches.)"}`,

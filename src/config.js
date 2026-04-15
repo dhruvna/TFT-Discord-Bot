@@ -54,12 +54,6 @@ function requireString(name) {
     return value;
 }
 
-function optionalString(name) {
-    const value = readEnv(name);
-    if (value === undefined || value === '') return null;
-    return value;
-}
-
 // Parse integers while enforcing optional bounds.
 function readInt(name, { defaultValue, min = -Infinity, max = Infinity }) {
     const raw = readEnv(name);
