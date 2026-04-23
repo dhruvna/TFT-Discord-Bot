@@ -4,6 +4,7 @@
 import {
     getGuildTftConfig,
     getKnownGuildIds,
+    getTftIdentity,
     getTftTracking,
     loadDb,
     normalizeAccountTracking,
@@ -53,9 +54,10 @@ function shouldRefreshRank(account, now, maxAgeMs) {
 // === Riot fetch helpers ===
 // Wrap Riot calls so we always respect the rate limiter.
 async function fetchMatchIds({ riotLimiter, account, count, start = 0 }) {
+    const tftIdentity = getTftIdentity(account);
     return getTFTMatchIdsByPuuid({
         regional: account.regional,
-        puuid: account.puuid,
+        puuid: tftIdentity.puuid,
         count,
         start,
         limiter: riotLimiter,
@@ -130,9 +132,10 @@ async function detectUnseenMatchIds({ account, matchBackfillLimit, fetchMatchIds
 // === Rank snapshot refresh ===
 // Convert Riot's raw league entries into our normalized snapshot format.
 async function refreshRankSnapshot({ riotLimiter, account }) {
+    const tftIdentity = getTftIdentity(account);
     const entries = await getTFTRankByPuuid({
         platform: account.platform,
-        puuid: account.puuid,
+        puuid: tftIdentity.puuid,
         limiter: riotLimiter,
     });
     return toRankSnapshot(entries);
@@ -263,7 +266,8 @@ export async function startMatchPoller(client) {
 
                 for (const account of accounts) {
                     normalizeAccountTracking(account);
-                    if (!account?.puuid || !account?.regional || !account?.platform || !account?.key) {
+                    const tftIdentity = getTftIdentity(account);
+                    if (!tftIdentity?.puuid || !account?.regional || !account?.platform || !account?.key) {
                         await sleep(perAccountDelayMs);
                         continue;
                     }
@@ -323,7 +327,7 @@ export async function startMatchPoller(client) {
                     //     const isMostRecent = index === orderedMatchIds.length - 1;
                         const match = await fetchMatch({ riotLimiter, account, matchId });
                         const participants = match?.info?.participants ?? [];
-                        const me = participants.find((p) => p.puuid === account.puuid);
+                        const me = participants.find((p) => p.puuid === tftIdentity.puuid);
                         const placement = me?.placement ?? null;
                         
                         const meta = detectQueueMetaFromMatch(match);

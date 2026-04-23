@@ -36,11 +36,17 @@ async function riotFetchJson(url, gameType = 'TFT', limiter = sharedRiotLimiter)
 
 const { regional: DEFAULT_REGIONAL } = resolveRegion();
 
-export async function getAccountByRiotId({ regional = DEFAULT_REGIONAL, gameName, tagLine, limiter }) {
+export async function getAccountByRiotId({ 
+    regional = DEFAULT_REGIONAL,
+    gameName, 
+    tagLine, 
+    gameType = 'TFT',
+    limiter 
+}) {
     const url = `https://${regional}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(
         gameName
     )}/${encodeURIComponent(tagLine)}`;
-    return riotFetchJson(url, 'TFT', limiter);
+    return riotFetchJson(url, gameType, limiter);
 }
 
 export async function getTFTRankByPuuid({ platform, puuid, limiter }) {

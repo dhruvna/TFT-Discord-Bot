@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getTftRegaliaThumbnailUrl, getLeagueOfGraphsUrl } from "../riot.js";
-import { GAME_TYPES, TFT_QUEUE_TYPES, queueLabel } from "../constants/queues.js"
-import { getTftTracking, loadDb } from "../storage.js";
+import { GAME_TYPES, LOL_QUEUE_TYPES, TFT_QUEUE_TYPES, TRACKING_GAME_CHOICES, queueLabel } from "../constants/queues.js"
+import { getLolTracking, getTftTracking, loadDb } from "../storage.js";
 import { respondWithAccountChoices } from "../utils/autocomplete.js";
 import { formatRankLine, formatWinrate } from "../utils/presentation.js";
 
@@ -42,8 +42,10 @@ async function buildQueueEmbed({account, label, entry}) {
         .addFields(fields)
         .setURL(profileUrl);
 
-    const thumbUrl = await getTftRegaliaThumbnailUrl({ queueType: entry.queueType, tier: entry.tier, });
-    if (thumbUrl) embed.setThumbnail(thumbUrl ?? 'https://placehold.co/96x96/png?text=TFT');
+    if (entry.gameType === GAME_TYPES.TFT) {
+        const thumbUrl = await getTftRegaliaThumbnailUrl({ queueType: entry.queueType, tier: entry.tier, });
+        if (thumbUrl) embed.setThumbnail(thumbUrl ?? 'https://placehold.co/96x96/png?text=TFT');
+    }
 
     return embed;
 }
@@ -54,6 +56,13 @@ export default {
         .setDescription("Look up ranked info for a Riot ID")
         .addStringOption((opt) =>
             opt.setName('account').setDescription('Select a Riot ID').setRequired(true).setAutocomplete(true)
+        )
+        .addStringOption((opt) => 
+            opt
+                .setName('game')
+                .setDescription('Select a which game ranks to choice')
+                .setRequired(false)
+                .addChoices(...TRACKING_GAME_CHOICES)
         ),
     
     async autocomplete(interaction) {
@@ -77,29 +86,42 @@ export default {
         const db = await loadDb();
         const guild = db[guildId];
         const accountIdx = guild?.accounts?.findIndex((a) => a.key === key) ?? -1;
-        const stored = accountIdx >= 0 ? guild.accounts[accountIdx] : null;
+        const stored = accountIdx >= 0 ? normalizeAccountTracking(guild.accounts[accountIdx]) : null;
 
         if (!stored) {
             await interaction.editReply("The selected account is not registered in this server. Try registering again.");
             return;
         }
 
-        // 4. Pull out rank info for TFT queues
+        const selectedGame = interaction.options.getString('game') ?? "BOTH";
+        const shouldShowTft = selectedGame === "BOTH" || selectedGame === "TFT";
+        const shouldShowLol = selectedGame === "BOTH" || selectedGame === "LOL";
+
+        // 4. Pull out rank info for tracked queues
         const tftTracking = getTftTracking(stored);
         let rankByQueue = tftTracking.lastRankByQueue ?? {};
+        const lolTracking = getLolTracking(stored);
+        const tftRankByQueue = tftTracking.lastRankByQueue ?? {};
+        const lolRankByQueue = lolTracking.lastRankByQueue ?? {};
 
         // 5. Pull out queues we care about
-        const rankedEntry = rankByQueue[TFT_QUEUE_TYPES.RANKED]
-            ? { ...rankByQueue[TFT_QUEUE_TYPES.RANKED], queueType: TFT_QUEUE_TYPES.RANKED }
+        const rankedEntry = tftRankByQueue[TFT_QUEUE_TYPES.RANKED]
+            ? { ...tftRankByQueue[TFT_QUEUE_TYPES.RANKED], queueType: TFT_QUEUE_TYPES.RANKED, gameType: GAME_TYPES.TFT }
             : null;
-        const doubleUpEntry = rankByQueue[TFT_QUEUE_TYPES.RANKED_DOUBLE_UP]
-            ? { ...rankByQueue[TFT_QUEUE_TYPES.RANKED_DOUBLE_UP], queueType: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP }
+        const doubleUpEntry = tftRankByQueue[TFT_QUEUE_TYPES.RANKED_DOUBLE_UP]
+            ? { ...tftRankByQueue[TFT_QUEUE_TYPES.RANKED_DOUBLE_UP], queueType: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP, gameType: GAME_TYPES.TFT }
+            : null;
+        const lolSoloEntry = lolRankByQueue[LOL_QUEUE_TYPES.RANKED_SOLO_DUO]
+            ? { ...lolRankByQueue[LOL_QUEUE_TYPES.RANKED_SOLO_DUO], queueType: LOL_QUEUE_TYPES.RANKED_SOLO_DUO, gameType: GAME_TYPES.LOL }
+            : null;
+        const lolFlexEntry = lolRankByQueue[LOL_QUEUE_TYPES.RANKED_FLEX]
+            ? { ...lolRankByQueue[LOL_QUEUE_TYPES.RANKED_FLEX], queueType: LOL_QUEUE_TYPES.RANKED_FLEX, gameType: GAME_TYPES.LOL }
             : null;
 
         // 6. Build embed fields
         const embeds = [];
 
-        if (rankedEntry) {
+        if (shouldShowTft && rankedEntry) {
             embeds.push(
                 await buildQueueEmbed({ 
                     account: stored, 
@@ -108,7 +130,7 @@ export default {
                 })
             );
         }
-        if (doubleUpEntry) {
+        if (shouldShowTft && doubleUpEntry) {
             embeds.push(
                 await buildQueueEmbed({ 
                     account: stored, 
@@ -117,18 +139,36 @@ export default {
                 })
             );
         }
-
+        if (shouldShowLol && lolSoloEntry) {
+            embeds.push(
+                await buildQueueEmbed({
+                    account: stored,
+                    label: queueLabel(GAME_TYPES.LOL, LOL_QUEUE_TYPES.RANKED_SOLO_DUO),
+                    entry: lolSoloEntry,
+                })
+            );
+        }
+        if (shouldShowLol && lolFlexEntry) {
+            embeds.push(
+                await buildQueueEmbed({
+                    account: stored,
+                    label: queueLabel(GAME_TYPES.LOL, LOL_QUEUE_TYPES.RANKED_FLEX),
+                    entry: lolFlexEntry,
+                })
+            );
+        }
         // 7. If no ranked entries, show unranked message
         if (embeds.length === 0) {
+            const gameSuffix = selectedGame === "BOTH" ? "" : ` ${selectedGame === "LOL" ? "LoL" : "TFT"}`;
             embeds.push(
                 new EmbedBuilder()
-                .setTitle(`${stored.gameName}#${stored.tagLine}'s TFT Rank:`)
+                .setTitle(`${stored.gameName}#${stored.tagLine}'s${gameSuffix} Rank:`)
                 .setDescription('Unranked')
             )
         }
         
         //8. Send reply with embeds
-        await interaction.editReply({ embeds: [embeds[0]] });
-        if (embeds[1]) await interaction.followUp({ embeds: [embeds[1]], ephemeral: true});
+        //8. Send reply with embeds (Discord max 10 embeds/message)
+        await interaction.editReply({ embeds: embeds.slice(0, 10) });
     },
 };

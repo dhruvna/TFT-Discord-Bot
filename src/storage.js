@@ -19,6 +19,27 @@ const TRACKED_GAMES = {
     LOL: 'lol',
 };
 
+function normalizeIdentityNamespace(identityNamespace, fallbackPuuid = null) {
+    const safeNamespace =
+        identityNamespace && typeof identityNamespace === 'object' ? identityNamespace : {};
+    return {
+        ...safeNamespace,
+        puuid: safeNamespace.puuid ?? fallbackPuuid ?? null,
+    };
+}
+
+function normalizeAccountIdentity(account) {
+    const safeIdentity = account?.identity && typeof account.identity === 'object'
+        ? account.identity
+        : {};
+    const legacyPuuid = account?.puuid ?? null;
+    return {
+        ...safeIdentity,
+        [TRACKED_GAMES.TFT]: normalizeIdentityNamespace(safeIdentity[TRACKED_GAMES.TFT], legacyPuuid),
+        [TRACKED_GAMES.LOL]: normalizeIdentityNamespace(safeIdentity[TRACKED_GAMES.LOL], null),
+    };
+}
+
 function enqueueWrite(operation) {
     const run = writeQueue.then(operation, operation);
     writeQueue = run.then(() => undefined, () => undefined); // Prevent unhandled rejections from blocking the queue
@@ -157,6 +178,7 @@ function readLegacyLastMatchId(account) {
 function normalizeTrackedGameNamespace(
     gameState,
     {
+        fallbackEnabled = true,
         fallbackLastMatchId = null,
         fallbackLastMatchAt = null,
         fallbackLastRankByQueue = {},
@@ -165,8 +187,13 @@ function normalizeTrackedGameNamespace(
 ) {
     const safeGameState = gameState && typeof gameState === 'object' ? gameState : {};
     const numericLastMatchAt = Number(safeGameState.lastMatchAt ?? fallbackLastMatchAt ?? 0);
+    const enabled =
+        typeof safeGameState.enabled === 'boolean'
+            ? safeGameState.enabled
+            : Boolean(fallbackEnabled);
     return {
         ...safeGameState,
+        enabled,
         lastMatchId: safeGameState.lastMatchId ?? fallbackLastMatchId,
         lastMatchAt: Number.isFinite(numericLastMatchAt) && numericLastMatchAt > 0 ? numericLastMatchAt : null,
         lastRankByQueue:
@@ -180,11 +207,14 @@ function normalizeTrackedGameNamespace(
 export function normalizeAccountTracking(account) {
     if (!account || typeof account !== 'object') return account;
 
+    account.identity = normalizeAccountIdentity(account);
+
     const trackedGames = account.trackedGames && typeof account.trackedGames === 'object'
         ? account.trackedGames
         : {};
 
     const tftTracked = normalizeTrackedGameNamespace(trackedGames[TRACKED_GAMES.TFT], {
+        fallbackEnabled: true,
         fallbackLastMatchId: readLegacyLastMatchId(account),
         fallbackLastMatchAt: null,
         fallbackLastRankByQueue: readLegacyRankByQueue(account),
@@ -192,6 +222,7 @@ export function normalizeAccountTracking(account) {
     });
 
     const lolTracked = normalizeTrackedGameNamespace(trackedGames[TRACKED_GAMES.LOL], {
+        fallbackEnabled: true,
         fallbackLastMatchId: null,
         fallbackLastMatchAt: null,
         fallbackLastRankByQueue: {},
@@ -207,8 +238,22 @@ export function normalizeAccountTracking(account) {
     if ('lastMatchId' in account) delete account.lastMatchId;
     if ('lastRankByQueue' in account) delete account.lastRankByQueue;
     if ('recapEvents' in account) delete account.recapEvents;
+    if ('puuid' in account) delete account.puuid;
 
     return account;
+}
+
+export function getTrackedGameIdentity(account, gameKey) {
+    const normalized = normalizeAccountTracking(account);
+    return normalized?.identity?.[gameKey] ?? {};
+}
+
+export function getTftIdentity(account) {
+    return getTrackedGameIdentity(account, TRACKED_GAMES.TFT);
+}
+
+export function getLolIdentity(account) {
+    return getTrackedGameIdentity(account, TRACKED_GAMES.LOL);
 }
 
 export function getTrackedGameState(account, gameKey) {

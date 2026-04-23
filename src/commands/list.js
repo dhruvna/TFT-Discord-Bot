@@ -1,6 +1,17 @@
 import { SlashCommandBuilder } from "discord.js";
 
-import { listGuildAccounts } from '../storage.js';
+import { listGuildAccounts, normalizeAccountTracking } from '../storage.js';
+
+function formatTrackingState(account) {
+    const normalized = normalizeAccountTracking(account);
+    const tftEnabled = normalized?.trackedGames?.tft?.enabled !== false;
+    const lolEnabled = normalized?.trackedGames?.lol?.enabled !== false;
+
+    if (tftEnabled && lolEnabled) return "TFT+LoL";
+    if (tftEnabled) return "TFT";
+    if (lolEnabled) return "LoL";
+    return "Disabled";
+}
 
 export default {
     data: new SlashCommandBuilder()
@@ -26,7 +37,7 @@ export default {
         }
 
         const lines = accounts
-            .map((a) => `- **${a.gameName}#${a.tagLine}** (${a.region})`)
+            .map((a) => `- **${a.gameName}#${a.tagLine}** (${a.region}) — ${formatTrackingState(a)}`)
             .join('\n');
         
         await interaction.editReply(`Registered accounts in this server:\n${lines}`);

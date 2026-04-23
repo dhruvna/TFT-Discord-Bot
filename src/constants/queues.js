@@ -6,6 +6,12 @@ export const GAME_TYPES = Object.freeze({
     LOL: "LOL",
 });
 
+export const TRACKING_GAME_CHOICES = Object.freeze([
+    { name: "TFT", value: "TFT" },
+    { name: "LoL", value: "LOL" },
+    { name: "Both", value: "BOTH" },
+]);
+
 export const TFT_QUEUE_TYPES = Object.freeze({
     NORMAL: "NORMAL_TFT",
     RANKED: "RANKED_TFT",
