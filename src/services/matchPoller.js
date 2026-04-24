@@ -4,13 +4,21 @@
 import {
     getGuildTftConfig,
     getKnownGuildIds,
+    getLolIdentity,
+    getLolTracking,
     getTftIdentity,
     getTftTracking,
     loadDb,
     normalizeAccountTracking,
     upsertGuildAccountInStore,
 } from '../storage.js';
-import { getTFTMatch, getTFTMatchIdsByPuuid, getTFTRankByPuuid } from '../riot.js';
+
+import {
+    getLolRankByPuuid,
+    getTFTMatch,
+    getTFTMatchIdsByPuuid,
+    getTFTRankByPuuid,
+} from '../riot.js';
 
 import {
     buildMatchResultEmbed,
@@ -26,6 +34,7 @@ import {
 import {
     DEFAULT_ANNOUNCE_QUEUES,
     GAME_TYPES,
+    LOL_QUEUE_TYPES,
     TFT_QUEUE_TYPES,
     isRankedQueue,
 } from '../constants/queues.js';
@@ -40,10 +49,10 @@ const MATCH_BACKFILL_LIMIT = 10;
 
 // === Rank refresh logic ===
 // Determine whether cached rank data is stale enough to refresh.
-function shouldRefreshRank(account, now, maxAgeMs) {
-    const tftTracking = getTftTracking(account);
-    if (!tftTracking?.lastRankByQueue) return true;
-    const entries = Object.values(tftTracking.lastRankByQueue);
+function shouldRefreshRank(account, now, maxAgeMs, gameType = GAME_TYPES.TFT) {
+    const tracking = gameType === GAME_TYPES.LOL ? getLolTracking(account) : getTftTracking(account);
+    if (!tracking?.lastRankByQueue) return true;
+    const entries = Object.values(tracking.lastRankByQueue);
     if (entries.length === 0) return true;
     return entries.some((entry) => {
         const lastUpdatedAt = Number(entry?.lastUpdatedAt ?? 0);
@@ -139,6 +148,21 @@ async function refreshRankSnapshot({ riotLimiter, account }) {
         limiter: riotLimiter,
     });
     return toRankSnapshot(entries);
+}
+
+async function refreshLolRankSnapshot({ riotLimiter, account }) {
+    const lolIdentity = getLolIdentity(account);
+    const entries = await getLolRankByPuuid({
+        platform: account.platform,
+        puuid: lolIdentity.puuid,
+        limiter: riotLimiter,
+    });
+    return toRankSnapshot(entries, {
+        rankedQueues: new Set([
+            LOL_QUEUE_TYPES.RANKED_SOLO_DUO,
+            LOL_QUEUE_TYPES.RANKED_FLEX,
+        ]),
+    });
 }
 
 // === Recap event buffer ===
@@ -266,15 +290,44 @@ export async function startMatchPoller(client) {
 
                 for (const account of accounts) {
                     normalizeAccountTracking(account);
+                    const lolIdentity = getLolIdentity(account);
                     const tftIdentity = getTftIdentity(account);
-                    if (!tftIdentity?.puuid || !account?.regional || !account?.platform || !account?.key) {
+                    if (!account?.regional || !account?.platform || !account?.key) {
                         await sleep(perAccountDelayMs);
                         continue;
                     }
                     
                     try {
                         const now = Date.now();
-                        if (shouldRefreshRank(account, now, rankRefreshMs)) {
+                        if (lolIdentity?.puuid && shouldRefreshRank(account, now, rankRefreshMs, GAME_TYPES.LOL)) {
+                            try {
+                                const refreshedLol = await refreshLolRankSnapshot({ riotLimiter, account });
+
+                                await upsertGuildAccountInStore(guildId, {
+                                    ...account,
+                                    trackedGames: {
+                                        ...(account.trackedGames ?? {}),
+                                        lol: {
+                                            ...getLolTracking(account),
+                                            lastRankByQueue: refreshedLol,
+                                        },
+                                    },
+                                });
+                                getLolTracking(account).lastRankByQueue = refreshedLol;
+                            } catch (err) {
+                                console.error(
+                                    `Error refreshing LoL rank for account ${account.key} (guild=${guildId}):`,
+                                    err
+                                );
+                            }
+                        }
+
+                        if (!tftIdentity?.puuid) {
+                            await sleep(perAccountDelayMs);
+                            continue;
+                        }
+
+                        if (shouldRefreshRank(account, now, rankRefreshMs, GAME_TYPES.TFT)) {
                             try {
                                 const refreshed = await refreshRankSnapshot({ riotLimiter, account });
                                 
