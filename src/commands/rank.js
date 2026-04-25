@@ -99,9 +99,8 @@ export default {
         const shouldShowTft = selectedGame === "BOTH" || selectedGame === "TFT";
         const shouldShowLol = selectedGame === "BOTH" || selectedGame === "LOL";
 
-        // 4. Pull out rank info for tracked queues
+        // 4. Pull out separate tracked rank snapshots for each game
         const tftTracking = getTftTracking(stored);
-        let rankByQueue = tftTracking.lastRankByQueue ?? {};
         const lolTracking = getLolTracking(stored);
         const tftRankByQueue = tftTracking.lastRankByQueue ?? {};
         const lolRankByQueue = lolTracking.lastRankByQueue ?? {};
