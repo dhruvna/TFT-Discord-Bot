@@ -25,6 +25,11 @@ export const LOL_QUEUE_TYPES = Object.freeze({
     UNKNOWN: "UNKNOWN_LOL",
 });
 
+export const GAME_TYPE_CHOICES = Object.freeze([
+    { name: "TFT", value: GAME_TYPES.TFT },
+    { name: "LoL", value: GAME_TYPES.LOL },
+]);
+
 // Backward compatibility alias; prefer TFT_QUEUE_TYPES in new code.
 export const QUEUE_TYPES = TFT_QUEUE_TYPES;
 
@@ -67,6 +72,42 @@ export const RANKED_QUEUE_CHOICES = [
     { name: "Ranked", value: TFT_QUEUE_TYPES.RANKED },
     { name: "Double Up", value: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP },
 ];
+
+
+export const TFT_RECAP_QUEUE_CHOICES = Object.freeze([
+    { name: "Ranked", value: TFT_QUEUE_TYPES.RANKED },
+    { name: "Double Up", value: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP },
+]);
+
+export const LOL_RECAP_QUEUE_CHOICES = Object.freeze([
+    { name: "Ranked Solo/Duo", value: LOL_QUEUE_TYPES.RANKED_SOLO_DUO },
+    { name: "Ranked Flex", value: LOL_QUEUE_TYPES.RANKED_FLEX },
+]);
+
+export const TFT_LEADERBOARD_QUEUE_CHOICES = TFT_RECAP_QUEUE_CHOICES;
+export const LOL_LEADERBOARD_QUEUE_CHOICES = LOL_RECAP_QUEUE_CHOICES;
+
+export const ALL_RECAP_QUEUE_CHOICES = Object.freeze([
+    ...TFT_RECAP_QUEUE_CHOICES,
+    ...LOL_RECAP_QUEUE_CHOICES,
+]);
+
+export const ALL_LEADERBOARD_QUEUE_CHOICES = Object.freeze([
+    ...TFT_LEADERBOARD_QUEUE_CHOICES,
+    ...LOL_LEADERBOARD_QUEUE_CHOICES,
+]);
+
+export function defaultRankedQueueForGame(game) {
+    return game === GAME_TYPES.LOL ? LOL_QUEUE_TYPES.RANKED_SOLO_DUO : TFT_QUEUE_TYPES.RANKED;
+}
+
+export function queueChoicesForRecap(game = GAME_TYPES.TFT) {
+    return game === GAME_TYPES.LOL ? LOL_RECAP_QUEUE_CHOICES : TFT_RECAP_QUEUE_CHOICES;
+}
+
+export function queueChoicesForLeaderboard(game = GAME_TYPES.TFT) {
+    return game === GAME_TYPES.LOL ? LOL_LEADERBOARD_QUEUE_CHOICES : TFT_LEADERBOARD_QUEUE_CHOICES;
+}
 
 // === Queue helpers ===
 // Provide a single spot to adjust labeling or ranked logic later.

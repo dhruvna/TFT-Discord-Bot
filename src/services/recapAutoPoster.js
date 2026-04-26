@@ -1,7 +1,7 @@
 // === Imports ===
 // The recap autoposter builds recap embeds and sends them on a schedule.
 import { getKnownGuildIds, loadDb, setGuildRecapLastSentYmdInStore } from '../storage.js';
-import { GAME_TYPES, TFT_QUEUE_TYPES } from '../constants/queues.js';
+import { GAME_TYPES, defaultRankedQueueForGame } from '../constants/queues.js';
 import { buildRecapEmbed, computeRecapRows, hoursForMode } from '../utils/recap.js';
 import config from "../config.js";
 
@@ -69,10 +69,13 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute, pollI
             if (!guild?.recap?.enabled) continue;
 
             const {
+                game = GAME_TYPES.TFT,
                 mode = 'DAILY',
-                queue = TFT_QUEUE_TYPES.RANKED,
+                queue: configuredQueue,
                 lastSentYmd = null,
             } = guild.recap;
+
+            const queue = configuredQueue ?? defaultRankedQueueForGame(game);
 
             const { shouldFire, scheduledTime: guildScheduledTime } = shouldFireRecapAutopost({
                 now,
@@ -105,7 +108,7 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute, pollI
             }
 
             console.log(
-                `[recap-autopost] firing guild=${guildId} mode=${mode} queue=${queue} channelId=${channelId}`
+                `[recap-autopost] firing guild=${guildId} mode=${mode} game=${game} queue=${queue} channelId=${channelId}`
             );
 
             // Build recap rows from stored recapEvents (same logic as /recap)
@@ -113,9 +116,9 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute, pollI
             const cutoff = getRecapCutoffTimestamp({ now, hours });
 
             const accounts = guild?.accounts ?? [];
-            const rows = computeRecapRows(accounts, cutoff, queue);
-            const embed = buildRecapEmbed({ rows, mode, game: GAME_TYPES.TFT, queue, hours });
-        
+            const rows = computeRecapRows(accounts, cutoff, queue, game);
+            const embed = buildRecapEmbed({ rows, mode, game, queue, hours });
+            
             await channel.send({ embeds: [embed] });
             
             // Persist the send date to prevent duplicate posts on the same day.

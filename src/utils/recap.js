@@ -4,7 +4,7 @@
 import { EmbedBuilder } from "discord.js";
 import { GAME_TYPES, queueLabel } from "../constants/queues.js";
 import { medalForIndex } from "./presentation.js";
-import { getTftTracking } from "../storage.js";
+import { getLolTracking, getTftTracking } from "../storage.js";
 
 // === Mode helpers ===
 // These keep the mode -> hours/label mapping consistent everywhere.
@@ -32,11 +32,10 @@ function accountName(a) {
 
 // === Recap aggregation ===
 // Compute per-account stats inside the requested time window
-export function computeRecapRows(accounts, cutoffMs, wantedQueue) {
+export function computeRecapRows(accounts, cutoffMs, wantedQueue, game = GAME_TYPES.TFT) {
   return accounts.map((account) => {
-    const tftTracking = getTftTracking(account);
-    const events = Array.isArray(tftTracking.recapEvents) ? tftTracking.recapEvents : [];
-
+    const tracking = game === GAME_TYPES.LOL ? getLolTracking(account) : getTftTracking(account);
+    const events = Array.isArray(tracking.recapEvents) ? tracking.recapEvents : [];
     const filtered = events.filter(
       (e) => Number(e?.at ?? 0) >= cutoffMs && e.queueType === wantedQueue
     );

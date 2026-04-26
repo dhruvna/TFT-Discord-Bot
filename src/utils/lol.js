@@ -80,13 +80,13 @@ export async function buildLolMatchResultEmbed({
         .setColor(didWin ? 0x2dcf71 : 0xf34e3c)
         .setTitle(`${label} ${didWin ? "Victory" : "Defeat"} for ${riotId}`);
 
-    const lpChangeValue = isRankedMatch ? formatDelta(delta) : "—";
+    const lpChangeValue = isRankedMatch ? formatDelta(didWin ? Math.abs(delta) : -Math.abs(delta)) : "—";
     const rankValue = isRankedMatch ? formatRankWithLp(afterRank) : "—";
 
     // TODO: Add champion icon
     embed.addFields(
         { name: "K/D/A", value: kda, inline: true },
-        { name: "LP Change", value: lpChangeValue, inline: true },
+        { name: didWin ? "LP Win" : "LP Loss", value: lpChangeValue, inline: true },
         { name: "Rank", value: rankValue, inline: true },
     );
 

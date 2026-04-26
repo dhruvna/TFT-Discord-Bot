@@ -5,8 +5,10 @@ import { listGuildAccounts } from '../storage.js';
 
 import {
   GAME_TYPES,
-  TFT_QUEUE_TYPES,
-  RANKED_QUEUE_CHOICES,
+  GAME_TYPE_CHOICES,
+  ALL_LEADERBOARD_QUEUE_CHOICES,
+  defaultRankedQueueForGame,
+  queueChoicesForLeaderboard,
   queueLabel,
 } from "../constants/queues.js";
 import { getRankSnapshotForQueue } from "../utils/rankSnapshot.js";
@@ -64,10 +66,17 @@ export default {
     .setDescription("Show server TFT leaderboard for registered accounts")
     .addStringOption((opt) =>
       opt
+        .setName("game")
+        .setDescription("Which game?")
+        .setRequired(false)
+        .addChoices(...GAME_TYPE_CHOICES)
+    )
+    .addStringOption((opt) =>
+      opt
         .setName("queue")
         .setDescription("Which ladder?")
         .setRequired(false)
-        .addChoices(...RANKED_QUEUE_CHOICES)
+        .addChoices(...ALL_LEADERBOARD_QUEUE_CHOICES)
     )
     .addIntegerOption((opt) =>
       opt
@@ -89,7 +98,12 @@ export default {
 
     await interaction.deferReply();
 
-    const queueType = interaction.options.getString("queue") || TFT_QUEUE_TYPES.RANKED;
+    const game = interaction.options.getString("game") || GAME_TYPES.TFT;
+    const rawQueueType = interaction.options.getString("queue");
+    const validQueueTypes = new Set(queueChoicesForLeaderboard(game).map((choice) => choice.value));
+    const queueType = validQueueTypes.has(rawQueueType)
+      ? rawQueueType
+      : defaultRankedQueueForGame(game);
     const limit = interaction.options.getInteger("limit") ?? 15;
 
     const accounts = await listGuildAccounts(guildId);
@@ -101,7 +115,7 @@ export default {
     // Map accounts to a sortable structure (rank + computed score).
     const ranked = accounts
       .map((account) => {
-        const rank = getRankSnapshotForQueue(account, queueType);
+        const rank = getRankSnapshotForQueue(account, queueType, game);
         return {
             account,
             rank,
@@ -113,7 +127,7 @@ export default {
     // Limit output so the embed stays readable.
     const shown = ranked.slice(0, limit);
     
-    const queueLabelText = queueLabel(GAME_TYPES.TFT, queueType);
+    const queueLabelText = queueLabel(game, queueType);
 
     // Build the human-readable lines shown in the embed.
     const lines = shown.map((r, i) => {
@@ -132,7 +146,7 @@ export default {
 
     // Build and send the embed.
     const embed = new EmbedBuilder()
-        .setTitle(`TFT Leaderboard — ${queueLabelText}`)
+        .setTitle(`${game === GAME_TYPES.LOL ? "LoL" : "TFT"} Leaderboard — ${queueLabelText}`)
         .setDescription(lines.join("\n"))
         .setFooter({ text: `Showing top ${shown.length} of ${ranked.length} registered account(s)` });
 

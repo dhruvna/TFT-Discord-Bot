@@ -1,12 +1,18 @@
 // src/commands/recap.js
 import { SlashCommandBuilder} from "discord.js";
 import { listGuildAccounts } from "../storage.js";
-import { 
+import {
   buildRecapEmbed,
   computeRecapRows,
   hoursForMode,
 } from "../utils/recap.js";
-import { GAME_TYPES, RANKED_QUEUE_CHOICES } from "../constants/queues.js";
+import {
+  GAME_TYPES,
+  GAME_TYPE_CHOICES,
+  ALL_RECAP_QUEUE_CHOICES,
+  defaultRankedQueueForGame,
+  queueChoicesForRecap,
+} from "../constants/queues.js";
 import { RECAP_MODE_CHOICES } from "../constants/recap.js";
 
 /* -------------------- Command -------------------- */
@@ -16,10 +22,17 @@ export default {
     .setDescription("Show Ranked or Double Up recap now, either daily or weekly.")
     .addStringOption((opt) =>
       opt
+        .setName("game")
+        .setDescription("Game to recap")
+        .setRequired(false)
+        .addChoices(...GAME_TYPE_CHOICES)
+    )
+    .addStringOption((opt) =>
+      opt
         .setName("queue")
         .setDescription("Queue to recap")
-        .setRequired(true)
-        .addChoices(...RANKED_QUEUE_CHOICES)
+        .setRequired(false)
+        .addChoices(...ALL_RECAP_QUEUE_CHOICES)
     )
     .addStringOption((opt) =>
       opt.setName("mode").setDescription("Daily or weekly recap").setRequired(false).addChoices(...RECAP_MODE_CHOICES)
@@ -35,8 +48,13 @@ export default {
         /* ---------- POST RECAP ---------- */
         await interaction.deferReply();
 
+        const game = interaction.options.getString("game") ?? GAME_TYPES.TFT;
         const mode = interaction.options.getString("mode") ?? "DAILY";
-        const queue = interaction.options.getString("queue");
+        const rawQueue = interaction.options.getString("queue");
+        const validQueueTypes = new Set(queueChoicesForRecap(game).map((choice) => choice.value));
+        const queue = validQueueTypes.has(rawQueue)
+            ? rawQueue
+            : defaultRankedQueueForGame(game);
 
         const hours = hoursForMode(mode);
         const cutoff = Date.now() - hours * 60 * 60 * 1000;
@@ -47,12 +65,11 @@ export default {
             return;
         }
 
-        const rows = computeRecapRows(accounts, cutoff, queue);
+        const rows = computeRecapRows(accounts, cutoff, queue, game);
         console.log(
-            `[recap] guild=${guildId} mode=${mode} queue=${queue} accounts=${accounts.length} cutoff=${new Date(cutoff).toISOString()}`
+            `[recap] guild=${guildId} mode=${mode} game=${game} queue=${queue} accounts=${accounts.length} cutoff=${new Date(cutoff).toISOString()}`
         );
-        const embed = buildRecapEmbed({ rows, mode, game: GAME_TYPES.TFT, queue, hours });
-        
+        const embed = buildRecapEmbed({ rows, mode, game, queue, hours });
         await interaction.editReply({ embeds: [embed] });
     },
 };
