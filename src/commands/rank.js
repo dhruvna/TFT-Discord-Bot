@@ -98,7 +98,6 @@ export default {
         const selectedGame = interaction.options.getString('game') ?? "BOTH";
         const shouldShowTft = selectedGame === "BOTH" || selectedGame === "TFT";
         const shouldShowLol = selectedGame === "BOTH" || selectedGame === "LOL";
-
         // 4. Pull out separate tracked rank snapshots for each game
         const tftTracking = getTftTracking(stored);
         const lolTracking = getLolTracking(stored);
@@ -168,8 +167,10 @@ export default {
             )
         }
         
-        //8. Send reply with embeds
-        //8. Send reply with embeds (Discord max 10 embeds/message)
-        await interaction.editReply({ embeds: embeds.slice(0, 10) });
+        //8. Send reply with embeds (one main reply + up to 9 follow-ups if multiple queues)
+        await interaction.editReply({ embeds: [embeds[0]] });
+        for (let i = 1; i < embeds.length && i < 10; i++) {
+                await interaction.followUp({ embeds: [embeds[i]], ephemeral: true});
+        }
     },
 };
