@@ -63,7 +63,7 @@ export async function buildLolMatchResultEmbed({
     afterRank,
     participant,
  }) {
-    const matchUrl = getLolMatchUrl(matchId);
+    const matchUrl = getLolMatchUrl({ matchId });
     const label = queueLabel(GAME_TYPES.LOL, queueType);
     const riotId = `${account.gameName}#${account.tagLine}`;
 
@@ -83,8 +83,8 @@ export async function buildLolMatchResultEmbed({
     const lpChangeValue = isRankedMatch ? formatDelta(delta) : "—";
     const rankValue = isRankedMatch ? formatRankWithLp(afterRank) : "—";
 
+    // TODO: Add champion icon
     embed.addFields(
-        { name: "Result", value: didWin ? "Win" : "Loss", inline: true },
         { name: "K/D/A", value: kda, inline: true },
         { name: "LP Change", value: lpChangeValue, inline: true },
         { name: "Rank", value: rankValue, inline: true },

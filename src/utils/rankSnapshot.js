@@ -53,9 +53,14 @@ export function standardizeRankLp(rank) {
 // Convert raw Riot entries into our internal snapshot structure.
 export function toRankSnapshot(entries, { now = Date.now(), rankedQueues = RANKED_QUEUES } = {}) {
     const rows = Array.isArray(entries) ? entries : [];
+    const normalizedRows = rows.map((entry) => {
+        if (!entry || typeof entry !== "object") return entry;
+        const queueType = normalizeQueueType(entry.queueType);
+        return queueType === entry.queueType ? entry : { ...entry, queueType };
+    });
 
     return Object.fromEntries(
-        rows
+        normalizedRows
             .filter((e) => rankedQueues.has(e.queueType))
             .map((e) => [
                 e.queueType,
@@ -70,6 +75,11 @@ export function toRankSnapshot(entries, { now = Date.now(), rankedQueues = RANKE
             ])
         );
     }
+
+function normalizeQueueType(queueType) {
+    if (typeof queueType !== "string") return queueType;
+    return queueType.trim().toUpperCase();
+}
 
 // === Delta computation ===
 // Compute rank movement by queue using normalized LP values.

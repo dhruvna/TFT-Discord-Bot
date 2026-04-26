@@ -182,12 +182,27 @@ async function refreshLolRankSnapshot({ riotLimiter, account }) {
         puuid: lolIdentity.puuid,
         limiter: riotLimiter,
     });
-    return toRankSnapshot(entries, {
+    const normalizedEntries = (Array.isArray(entries) ? entries : []).map((entry) => {
+        const mappedQueueType = mapRiotLolQueueType(entry?.queueType);
+        return mappedQueueType ? { ...entry, queueType: mappedQueueType } : entry;
+    });
+
+    return toRankSnapshot(normalizedEntries, {
         rankedQueues: new Set([
             LOL_QUEUE_TYPES.RANKED_SOLO_DUO,
             LOL_QUEUE_TYPES.RANKED_FLEX,
         ]),
     });
+}
+
+function mapRiotLolQueueType(queueType) {
+    if (queueType === "RANKED_SOLO_5x5") {
+        return LOL_QUEUE_TYPES.RANKED_SOLO_DUO;
+    }
+    if (queueType === "RANKED_FLEX_SR") {
+        return LOL_QUEUE_TYPES.RANKED_FLEX;
+    }
+    return null;
 }
 
 // === Recap event buffer ===
