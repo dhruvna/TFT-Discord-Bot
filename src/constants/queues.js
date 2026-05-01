@@ -35,9 +35,9 @@ export const QUEUE_TYPES = TFT_QUEUE_TYPES;
 
 const QUEUE_LABELS_BY_GAME = Object.freeze({
     [GAME_TYPES.TFT]: Object.freeze({
-        [TFT_QUEUE_TYPES.NORMAL]: "Normal",
-        [TFT_QUEUE_TYPES.RANKED]: "Ranked",
-        [TFT_QUEUE_TYPES.RANKED_DOUBLE_UP]: "Double Up",
+        [TFT_QUEUE_TYPES.NORMAL]: "Normal TFT",
+        [TFT_QUEUE_TYPES.RANKED]: "Ranked TFT",
+        [TFT_QUEUE_TYPES.RANKED_DOUBLE_UP]: "Double Up TFT",
         [TFT_QUEUE_TYPES.UNKNOWN]: "Unknown",
     }),
     [GAME_TYPES.LOL]: Object.freeze({
@@ -71,14 +71,14 @@ export const DEFAULT_ANNOUNCE_QUEUES = [
 
 // Discord choice objects for slash command options.
 export const RANKED_QUEUE_CHOICES = [
-    { name: "Ranked", value: TFT_QUEUE_TYPES.RANKED },
-    { name: "Double Up", value: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP },
+    { name: "Ranked TFT", value: TFT_QUEUE_TYPES.RANKED },
+    { name: "Double Up TFT", value: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP },
 ];
 
 
 export const TFT_RECAP_QUEUE_CHOICES = Object.freeze([
-    { name: "Ranked", value: TFT_QUEUE_TYPES.RANKED },
-    { name: "Double Up", value: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP },
+    { name: "Ranked TFT", value: TFT_QUEUE_TYPES.RANKED },
+    { name: "Double Up TFT", value: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP },
 ]);
 
 export const LOL_RECAP_QUEUE_CHOICES = Object.freeze([
