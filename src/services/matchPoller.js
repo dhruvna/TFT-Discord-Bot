@@ -365,6 +365,10 @@ export async function startMatchPoller(client) {
                     normalizeAccountTracking(account);
                     const lolIdentity = getLolIdentity(account);
                     const tftIdentity = getTftIdentity(account);
+                    const refreshedRankSnapshotsByGame = {
+                        [GAME_TYPES.LOL]: null,
+                        [GAME_TYPES.TFT]: null,
+                    };
                     if (!account?.regional || !account?.platform || !account?.key) {
                         await sleep(perAccountDelayMs);
                         continue;
@@ -375,6 +379,7 @@ export async function startMatchPoller(client) {
                         if (lolIdentity?.puuid && shouldRefreshRank(account, now, rankRefreshMs, GAME_TYPES.LOL)) {
                             try {
                                 const refreshedLol = await refreshLolRankSnapshot({ riotLimiter, account });
+                                refreshedRankSnapshotsByGame[GAME_TYPES.LOL] = refreshedLol;
 
                                 await upsertGuildAccountInStore(guildId, {
                                     ...account,
@@ -398,7 +403,8 @@ export async function startMatchPoller(client) {
                         if (shouldRefreshRank(account, now, rankRefreshMs, GAME_TYPES.TFT) && tftIdentity?.puuid) {
                             try {
                                 const refreshed = await refreshRankSnapshot({ riotLimiter, account });
-                                
+                                refreshedRankSnapshotsByGame[GAME_TYPES.TFT] = refreshed;
+
                                 await upsertGuildAccountInStore(guildId, {
                                     ...account,
                                     trackedGames: {
@@ -472,10 +478,16 @@ export async function startMatchPoller(client) {
                                 const { matchId, me, queueType, isRanked, gameMs } = prepared;
                                 const isLatestRankedMatch = index === latestLolRankedIndex;
                                 if (isLatestRankedMatch) {
-                                    try {
-                                        afterLol = await refreshLolRankSnapshot({ riotLimiter, account });
-                                    } catch {
-                                        // ignore refresh failure for delta calc
+                                    const memoizedRankSnapshot = refreshedRankSnapshotsByGame[GAME_TYPES.LOL];
+                                    if (memoizedRankSnapshot) {
+                                        afterLol = memoizedRankSnapshot;
+                                    } else {
+                                        try {
+                                            afterLol = await refreshLolRankSnapshot({ riotLimiter, account });
+                                            refreshedRankSnapshotsByGame[GAME_TYPES.LOL] = afterLol;
+                                        } catch {
+                                            // ignore refresh failure for delta calc
+                                        }
                                     }
                                 }
 
@@ -620,12 +632,16 @@ export async function startMatchPoller(client) {
 
                         const isLatestRankedMatch = index === latestRankedIndex;
                         if (isLatestRankedMatch) {
-                        // // Only refresh rank once, for the latest ranked match.
-                        // if (isMostRecent && isRanked) {
-                            try {
-                                after = await refreshRankSnapshot({ riotLimiter, account });
-                            } catch {
-                                // ignore refresh failure for delta calc
+                            const memoizedRankSnapshot = refreshedRankSnapshotsByGame[GAME_TYPES.TFT];
+                            if (memoizedRankSnapshot) {
+                                after = memoizedRankSnapshot;
+                            } else {
+                                try {
+                                    after = await refreshRankSnapshot({ riotLimiter, account });
+                                    refreshedRankSnapshotsByGame[GAME_TYPES.TFT] = after;
+                                } catch {
+                                    // ignore refresh failure for delta calc
+                                }
                             }
                         }
 
