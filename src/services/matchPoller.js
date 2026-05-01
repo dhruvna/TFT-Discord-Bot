@@ -361,8 +361,8 @@ export async function startMatchPoller(client) {
                     }
                 }
 
-                for (const account of accounts) {
-                    normalizeAccountTracking(account);
+                for (let account of accounts) {
+                    account = normalizeAccountTracking(account);
                     const lolIdentity = getLolIdentity(account);
                     const tftIdentity = getTftIdentity(account);
                     const refreshedRankSnapshotsByGame = {

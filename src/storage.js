@@ -208,7 +208,10 @@ function normalizeTrackedGameNamespace(
 export function normalizeAccountTracking(account) {
     if (!account || typeof account !== 'object') return account;
 
-    account.identity = normalizeAccountIdentity(account);
+    const normalizedAccount = {
+        ...account,
+        identity: normalizeAccountIdentity(account),
+    };
 
     const trackedGames = account.trackedGames && typeof account.trackedGames === 'object'
         ? account.trackedGames
@@ -221,7 +224,7 @@ export function normalizeAccountTracking(account) {
         fallbackLastRankByQueue: readLegacyRankByQueue(account),
         fallbackRecapEvents: readLegacyRecapEvents(account),
     });
-
+    
     const lolTracked = normalizeTrackedGameNamespace(trackedGames[TRACKED_GAMES.LOL], {
         fallbackEnabled: true,
         fallbackLastMatchId: null,
@@ -230,18 +233,24 @@ export function normalizeAccountTracking(account) {
         fallbackRecapEvents: [],
     });
 
-    account.trackedGames = {
+    normalizedAccount.trackedGames = {
         ...trackedGames,
         [TRACKED_GAMES.TFT]: tftTracked,
         [TRACKED_GAMES.LOL]: lolTracked,
     };
 
-    if ('lastMatchId' in account) delete account.lastMatchId;
-    if ('lastRankByQueue' in account) delete account.lastRankByQueue;
-    if ('recapEvents' in account) delete account.recapEvents;
-    if ('puuid' in account) delete account.puuid;
-
-    return account;
+    // if ('lastMatchId' in account) delete account.lastMatchId;
+    // if ('lastRankByQueue' in account) delete account.lastRankByQueue;
+    // if ('recapEvents' in account) delete account.recapEvents;
+    // if ('puuid' in account) delete account.puuid;
+    
+    // return account;
+    if ('lastMatchId' in normalizedAccount) delete normalizedAccount.lastMatchId;
+    if ('lastRankByQueue' in normalizedAccount) delete normalizedAccount.lastRankByQueue;
+    if ('recapEvents' in normalizedAccount) delete normalizedAccount.recapEvents;
+    if ('puuid' in normalizedAccount) delete normalizedAccount.puuid;
+    
+    return normalizedAccount;
 }
 
 export function getTrackedGameIdentity(account, gameKey) {
