@@ -2,6 +2,7 @@
 // We rely on the filesystem to persist registrations and per-guild settings.
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { DEFAULT_ANNOUNCE_QUEUES } from './constants/queues.js';
 
 // === File locations ===
 // Use a default path in the repo while allowing overrides via env vars.
@@ -123,7 +124,7 @@ function ensureGuild(db, guildId) {
     if (!('channelId' in db[guildId])) db[guildId].channelId = null;    
 
     if (!('announceQueues' in db[guildId])) {
-        db[guildId].announceQueues = ['RANKED_TFT', 'RANKED_TFT_DOUBLE_UP'];
+        db[guildId].announceQueues = [...DEFAULT_ANNOUNCE_QUEUES];
     }
 
     if (!('messageProfile' in db[guildId])) {

@@ -296,18 +296,7 @@ function shouldAnnounceMatch({ announceQueues, queueType }) {
 }
 
 function getEffectiveAnnounceQueues(announceQueues) {
-    if (!Array.isArray(announceQueues)) return announceQueues;
-    const isLegacyDefault =
-        announceQueues.length === DEFAULT_ANNOUNCE_QUEUES.length &&
-        DEFAULT_ANNOUNCE_QUEUES.every((queueType) => announceQueues.includes(queueType));
-
-    if (!isLegacyDefault) return announceQueues;
-
-    return [
-        ...announceQueues,
-        LOL_QUEUE_TYPES.RANKED_SOLO_DUO,
-        LOL_QUEUE_TYPES.RANKED_FLEX,
-    ];
+    return announceQueues;
 }
 
 // === Service entry point ===

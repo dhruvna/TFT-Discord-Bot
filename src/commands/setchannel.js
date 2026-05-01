@@ -1,6 +1,18 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
 import { setGuildChannelAndQueueConfigInStore } from "../storage.js";
-import { DEFAULT_ANNOUNCE_QUEUES } from "../constants/queues.js";
+import { DEFAULT_ANNOUNCE_QUEUES, LOL_QUEUE_TYPES, TFT_QUEUE_TYPES } from "../constants/queues.js";
+
+const ANNOUNCE_QUEUE_PRESETS = Object.freeze({
+    RANKED_TFT_AND_LOL: DEFAULT_ANNOUNCE_QUEUES,
+    RANKED_TFT_ONLY: [
+        TFT_QUEUE_TYPES.RANKED,
+        TFT_QUEUE_TYPES.RANKED_DOUBLE_UP,
+    ],
+    RANKED_LOL_ONLY: [
+        LOL_QUEUE_TYPES.RANKED_SOLO_DUO,
+        LOL_QUEUE_TYPES.RANKED_FLEX,
+    ]
+});
 
 export default {
     data: new SlashCommandBuilder()
@@ -13,11 +25,16 @@ export default {
                 .setRequired(true)
                 .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
         )
-        .addBooleanOption(opt => 
+        .addStringOption((opt) =>
             opt
-                .setName("ranked_only")
-                .setDescription("Announce only ranked TFT matches")
+                .setName("queue_preset")
+                .setDescription("Select which queues to announce")
                 .setRequired(false)
+                .addChoices(
+                    { name: "Ranked TFT + Ranked LoL", value: "RANKED_TFT_AND_LOL" },
+                    { name: "Ranked TFT only", value: "RANKED_TFT_ONLY" },
+                    { name: "Ranked LoL only", value: "RANKED_LOL_ONLY" },
+                )
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
@@ -42,16 +59,23 @@ export default {
 
         await interaction.deferReply({ ephemeral: true });
         
-        const effectiveRankedOnly = interaction.options.getBoolean("ranked_only") ?? true;
+        const presetName = interaction.options.getString("queue_preset") ?? "RANKED_TFT_AND_LOL";
+        const selectedQueues = ANNOUNCE_QUEUE_PRESETS[presetName] ?? DEFAULT_ANNOUNCE_QUEUES;
+        const queueFilterLabel =
+            presetName === "RANKED_TFT_ONLY"
+                    ? "Ranked TFT only"
+                    : presetName === "RANKED_LOL_ONLY"
+                        ? "Ranked LoL only"
+                        : "Ranked TFT + Ranked LoL";
 
         await setGuildChannelAndQueueConfigInStore(guildId, {
             channelId: channel.id,
-            queues: effectiveRankedOnly ? DEFAULT_ANNOUNCE_QUEUES : null,
+            queues: selectedQueues,
         });
         
         await interaction.editReply(
             `Match result announcements will be sent to ${channel}.\n` +
-                `Queue filter: **${effectiveRankedOnly ? "Ranked + Double Up only" : "All queues"}**`
+                `Queue filter: **${queueFilterLabel}**`
         );
     },
 }
