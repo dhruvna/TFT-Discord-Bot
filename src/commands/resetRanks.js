@@ -1,5 +1,7 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import { GAME_TYPES, GAME_TYPE_CHOICES } from "../constants/queues.js";
 import {
+    TRACKED_GAMES,
     resetGuildAccountProgressBeforeInStore,
     resetGuildAccountProgressInStore,
     setGuildTftConfigInStore,
@@ -19,12 +21,19 @@ function parseCutoffDateOrNull(input) {
 export default {
     data: new SlashCommandBuilder()
         .setName("resetranks")
-        .setDescription("Reset TFT tracking progress for this server. Optionally, set a cutoff date.")
+        .setDescription("Reset tracking progress for this server (TFT, LoL, or both). Optionally, set a cutoff date.")
         .addBooleanOption((opt) =>
             opt
                 .setName("confirm")
                 .setDescription("Confirm the reset action.")
                 .setRequired(true)
+        )
+        .addStringOption((opt) =>
+            opt
+                .setName("game")
+                .setDescription("Game scope to reset (defaults to TFT for compatibility).")
+                .setRequired(false)
+                .addChoices(...GAME_TYPE_CHOICES, { name: "Both", value: "BOTH" })
         )
         .addStringOption((opt) =>
             opt
@@ -59,6 +68,8 @@ export default {
         return;
         }
 
+        const selectedGame = interaction.options.getString("game") ?? GAME_TYPES.TFT;
+        const gameScope = selectedGame === "BOTH" ? [TRACKED_GAMES.TFT, TRACKED_GAMES.LOL] : [selectedGame === GAME_TYPES.LOL ? TRACKED_GAMES.LOL : TRACKED_GAMES.TFT];
         const beforeDate = interaction.options.getString("before_date");
         const cutoffMs = parseCutoffDateOrNull(beforeDate);
         const clearMatchCursor = interaction.options.getBoolean("clear_match_cursor") ?? false;
@@ -71,10 +82,10 @@ export default {
         }
 
         const result = beforeDate
-            ? await resetGuildAccountProgressBeforeInStore(guildId, cutoffMs, { clearMatchCursor })
+            ? await resetGuildAccountProgressBeforeInStore(guildId, cutoffMs, { clearMatchCursor, gameScope })
             : clearMatchCursor
-                ? await resetGuildAccountProgressBeforeInStore(guildId, null, { clearMatchCursor: true })
-                : await resetGuildAccountProgressInStore(guildId);
+                ? await resetGuildAccountProgressBeforeInStore(guildId, null, { clearMatchCursor: true, gameScope })
+                : await resetGuildAccountProgressInStore(guildId, { gameScope });
 
         if (beforeDate) {
             await setGuildTftConfigInStore(guildId, { seasonCutoffMs: cutoffMs });
@@ -92,10 +103,11 @@ export default {
             content:
                 `Reset complete for this server${beforeDate ? ` (cutoff: **${beforeDate} 00:00:00 UTC**)` : ""}.\n` +
                 `• Accounts registered: **${result.totalAccounts}**\n` +
-                `• Accounts with progress cleared: **${result.resetAccounts}**\n\n` +
+                `• Accounts with progress cleared: **${result.resetAccounts}**\n` +
+                `• Game scope: **${selectedGame === "BOTH" ? "TFT + LoL" : (selectedGame === GAME_TYPES.LOL ? "LoL" : "TFT")}**\n\n` +
                 `${beforeDate ? `• Accounts skipped (recent match on/after cutoff): **${result.skippedAccounts ?? 0}**\n\n` : ""}` +
                 `${beforeDate ? `Saved guild TFT season cutoff to **${beforeDate} 00:00:00 UTC** for future polling.\n` : ""}` +
-                `Cleared trackedGames.tft fields: 'lastRankByQueue' and 'recapEvents'` +
+                `Cleared each selected game's 'lastRankByQueue' and 'recapEvents'` +
                 `${clearMatchCursor ? ", plus 'lastMatchId' and 'lastMatchAt'." : ". (Kept 'lastMatchId' and 'lastMatchAt' to avoid replaying old matches.)"}`,
             ephemeral: true,
         });

@@ -13,10 +13,6 @@ import {
   isRankedQueue,
   queueLabel,
 } from "../constants/queues.js";
-import {
-    MESSAGE_PROFILES,
-    resolveMatchResultDescription,
-} from "../constants/messages.js";
 import { formatRankWithLp } from "./presentation.js";
 
 // === Queue helpers ===
@@ -106,7 +102,6 @@ export async function buildMatchResultEmbed({
     delta, 
     afterRank,
     participant,
-    messageProfile = MESSAGE_PROFILES.NEUTRAL,
  }) {
     const matchUrl = getTFTMatchUrl({ matchId });
     const label = labelForQueueType(queueType);
@@ -140,23 +135,15 @@ export async function buildMatchResultEmbed({
     const riotId = `${account.gameName}#${account.tagLine}`;
     const ord = p ? placementToOrdinal(p) : 'N/A';
 
-    const description = resolveMatchResultDescription({
-        placement: p,
-        profile: messageProfile,
-    });
-
     // Use different colors/titles for wins and losses for quick scanning.
     if (isWin) {
         embed.setColor(0x2dcf71).setTitle(`${label} Victory for ${riotId}!`);
-        embed.setDescription(description);
     } else if (isLoss) {
         embed.setColor(0xf34e3c).setTitle(`${label} Defeat for ${riotId}...`);
-        embed.setDescription(description);
     } else {
         embed
         .setColor(0x5865f2)
         .setTitle(`${label} Result for ${riotId}`)
-        .setDescription(p ? `Finished ${ord}. ${description}` : description);
     }
 
     embed.addFields(

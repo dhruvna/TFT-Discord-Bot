@@ -55,14 +55,14 @@ async function buildQueueEmbed({account, label, entry}) {
 export default {
     data: new SlashCommandBuilder()
         .setName("rank")
-        .setDescription("Look up ranked info for a Riot ID")
+        .setDescription("Show stored TFT/LoL ranked snapshots for a registered account")
         .addStringOption((opt) =>
             opt.setName('account').setDescription('Select a Riot ID').setRequired(true).setAutocomplete(true)
         )
         .addStringOption((opt) => 
             opt
                 .setName('game')
-                .setDescription('Select a which game ranks to choice')
+                .setDescription("Choose which game's rank snapshot to show")
                 .setRequired(false)
                 .addChoices(...TRACKING_GAME_CHOICES)
         ),

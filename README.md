@@ -1,6 +1,11 @@
 # TFT Int Log Tracker:
 
-A Discord bot built with **Node.js**, **discord.js**, and the **Riot Games API** that allows users to register Riot IDs per server, list registered accounts, and fetch competitive data (with plans for live match tracking).
+A Discord bot built with **Node.js**, **discord.js**, and the **Riot Games API** that lets each server register Riot IDs, view rank data, and post automated match results.
+
+> **Game scope (current):**
+> - **TFT:** Full feature set (registration, rank, leaderboard, recap, autopost tracking).
+> - **LoL:** Partial support (registration + rank snapshots + automated match-result posts).
+> - **Not yet parity with TFT:** LoL leaderboard/recap and LoL-specific recap automation.
 
 ## Features
 
@@ -13,9 +18,9 @@ A Discord bot built with **Node.js**, **discord.js**, and the **Riot Games API**
 - Format: `gameName#tagLine (Region)`
 
 ### Rank Lookup
-- `/rank` fetches TFT ranked data
-- Supports region selection via dropdown (reduces user error)
-- Includes a link to external match/rank pages (e.g., LeagueOfGraphs) when available
+- `/rank` shows stored ranked snapshots for registered accounts
+- Supports **TFT**, **LoL**, or **both** via the `game` option
+- TFT entries link to LeagueOfGraphs; LoL entries link to the player profile page
 
 ### Persistent Storage
 - Local JSON database:
@@ -31,21 +36,16 @@ A Discord bot built with **Node.js**, **discord.js**, and the **Riot Games API**
   - Riot ID → PUUID
   - Platform routing (e.g. `na1`) → regional routing (e.g. `americas`)
 
-## Automated Match Tracking (TFT)
+## Automated Match Tracking (TFT + LoL)
 
-The bot automatically posts a match result embed after a registered player finishes a TFT game.
+The bot automatically posts a match result embed after a registered player finishes a tracked game.
 
 Current behavior:
-- Periodically polls each registered account’s most recent match ID
+- Periodically polls each registered account's most recent match ID (TFT + LoL)
 - Detects newly completed matches by comparing against stored `lastMatchId`
-- Fetches match details and final placement
-- Fetches current ranked snapshot
+- Fetches match details and current ranked snapshot
 - Computes LP delta from the previously saved snapshot
-- Posts a styled embed including:
-  - Placement
-  - LP change
-  - Current rank
-  - Match link (LeagueOfGraphs)
+- Posts a styled embed with game-specific fields (for example, TFT placement or LoL K/D/A), LP change, and rank context when available
 
 ## Seasonal Reset Support
 - `/resetranks confirm:true` clears TFT rank snapshots + recap history for the server.
@@ -53,10 +53,14 @@ Current behavior:
 - By default reset keeps `lastMatchId` / `lastMatchAt` so old games are not replayed; use `clear_match_cursor:true` only if you intentionally want a full cursor wipe.
 
 # TODO
-### Leaderboard
-- patch notes
+### Parity / Feature Gaps
+- LoL `/leaderboard` parity (current leaderboard is TFT-only)
+- LoL `/recap` parity and LoL recap autopost support
+- Optional per-game channel routing/filter presets (finer TFT vs LoL control)
+
+### Platform / Operations
 - Host bot 24/7
-- LoL support
+- Patch notes / release changelog
 
 ### Match History / Detail Commands
 - `/lastmatch` command

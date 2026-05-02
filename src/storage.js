@@ -15,7 +15,7 @@ const DATA_PATH = process.env.DATA_PATH
 let writeQueue = Promise.resolve();
 const DISCORD_SNOWFLAKE_REGEX = /^\d{17,20}$/;
 const RECAP_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-const TRACKED_GAMES = {
+export const TRACKED_GAMES = {
     TFT: 'tft',
     LOL: 'lol',
 };
@@ -127,10 +127,6 @@ function ensureGuild(db, guildId) {
         db[guildId].announceQueues = [...DEFAULT_ANNOUNCE_QUEUES];
     }
 
-    if (!('messageProfile' in db[guildId])) {
-        db[guildId].messageProfile = 'neutral';
-    }
-
     if (!('tft' in db[guildId]) || typeof db[guildId].tft !== 'object' || db[guildId].tft === null) {
         db[guildId].tft = {
             seasonCutoffMs: null,
@@ -145,6 +141,7 @@ function ensureGuild(db, guildId) {
         db[guildId].recap = {
             enabled: false,
             mode: 'DAILY',          // DAILY | WEEKLY
+            game: 'TFT',
             queue: 'RANKED_TFT',    // RANKED_TFT | RANKED_TFT_DOUBLE_UP
             lastSentYmd: null,      // "YYYY-MM-DD" to prevent double posting
         };
@@ -152,6 +149,7 @@ function ensureGuild(db, guildId) {
         // If older configs exist, ensure required keys exist.
         if (!('enabled' in db[guildId].recap)) db[guildId].recap.enabled = false;
         if (!('mode' in db[guildId].recap)) db[guildId].recap.mode = 'DAILY';
+        if (!('game' in db[guildId].recap)) db[guildId].recap.game = 'TFT';
         if (!('queue' in db[guildId].recap)) db[guildId].recap.queue = 'RANKED_TFT';
         if (!('lastSentYmd' in db[guildId].recap)) db[guildId].recap.lastSentYmd = null;
 
@@ -239,12 +237,6 @@ export function normalizeAccountTracking(account) {
         [TRACKED_GAMES.LOL]: lolTracked,
     };
 
-    // if ('lastMatchId' in account) delete account.lastMatchId;
-    // if ('lastRankByQueue' in account) delete account.lastRankByQueue;
-    // if ('recapEvents' in account) delete account.recapEvents;
-    // if ('puuid' in account) delete account.puuid;
-    
-    // return account;
     if ('lastMatchId' in normalizedAccount) delete normalizedAccount.lastMatchId;
     if ('lastRankByQueue' in normalizedAccount) delete normalizedAccount.lastRankByQueue;
     if ('recapEvents' in normalizedAccount) delete normalizedAccount.recapEvents;
@@ -442,13 +434,16 @@ export async function pruneExpiredRecapEventsInStore(nowMs = Date.now()) {
     return mutateDb((db) => pruneExpiredRecapEventsInDb(db, nowMs));
 }
 
-export async function resetGuildAccountProgressInStore(guildId) {
-    return resetGuildAccountProgressBeforeInStore(guildId, null);
+export async function resetGuildAccountProgressInStore(guildId, options = {}) {
+    return resetGuildAccountProgressBeforeInStore(guildId, null, options);
 }
 
 export async function resetGuildAccountProgressBeforeInStore(guildId, cutoffMs, options = {}) {
     const hasCutoff = Number.isFinite(cutoffMs) && cutoffMs > 0;
     const clearMatchCursor = options?.clearMatchCursor === true;
+    const requestedScope = Array.isArray(options?.gameScope) && options.gameScope.length > 0
+        ? options.gameScope
+        : [TRACKED_GAMES.TFT]; // backward-compatible default
     return mutateGuild(guildId, ({ guild }) => {
         const accounts = Array.isArray(guild?.accounts) ? guild.accounts : [];
         if (accounts.length === 0) {
@@ -459,35 +454,42 @@ export async function resetGuildAccountProgressBeforeInStore(guildId, cutoffMs, 
         let skippedAccounts = 0;
 
         for (const account of accounts) {
-            const tftTracking = getTftTracking(account);
-            const lastMatchAt = Number(tftTracking?.lastMatchAt ?? 0);
-            const shouldResetForCutoff =
-                !hasCutoff ||
-                !Number.isFinite(lastMatchAt) ||
-                lastMatchAt <= 0 ||
-                lastMatchAt < cutoffMs;
-            if (!shouldResetForCutoff) {
-                skippedAccounts += 1;
-                continue;
+            let accountReset = false;
+            let accountSkippedByCutoff = false;
+
+            for (const gameKey of requestedScope) {
+                const tracking = gameKey === TRACKED_GAMES.LOL ? getLolTracking(account) : getTftTracking(account);
+                const lastMatchAt = Number(tracking?.lastMatchAt ?? 0);
+                const shouldResetForCutoff =
+                    !hasCutoff ||
+                    !Number.isFinite(lastMatchAt) ||
+                    lastMatchAt <= 0 ||
+                    lastMatchAt < cutoffMs;
+                if (!shouldResetForCutoff) {
+                    accountSkippedByCutoff = true;
+                    continue;
+                }
+
+                const hadLastMatchId = Boolean(tracking?.lastMatchId);
+                const hadRankSnapshot = 
+                    tracking?.lastRankByQueue && Object.keys(tracking.lastRankByQueue).length > 0;
+                const hadRecapEvents = Array.isArray(tracking?.recapEvents) && tracking.recapEvents.length > 0;
+                const hadMatchCursor = Boolean(tracking?.lastMatchId) || Number(tracking?.lastMatchAt ?? 0) > 0;
+
+                if (clearMatchCursor) {
+                    tracking.lastMatchId = null;
+                    tracking.lastMatchAt = null;
+                }
+
+                tracking.lastRankByQueue = {};
+                tracking.recapEvents = [];
+
+                if (hadLastMatchId || hadRankSnapshot || hadRecapEvents || (clearMatchCursor && hadMatchCursor)) {
+                    accountReset = true;
+                }
             }
-
-            const hadLastMatchId = Boolean(tftTracking?.lastMatchId);
-            const hadRankSnapshot = 
-                tftTracking?.lastRankByQueue && Object.keys(tftTracking.lastRankByQueue).length > 0;
-            const hadRecapEvents = Array.isArray(tftTracking?.recapEvents) && tftTracking.recapEvents.length > 0;
-            const hadMatchCursor = Boolean(tftTracking?.lastMatchId) || Number(tftTracking?.lastMatchAt ?? 0) > 0;
-
-            if (clearMatchCursor) {
-                tftTracking.lastMatchId = null;
-                tftTracking.lastMatchAt = null;
-            }
-
-            tftTracking.lastRankByQueue = {};
-            tftTracking.recapEvents = [];
-
-            if (hadLastMatchId || hadRankSnapshot || hadRecapEvents || (clearMatchCursor && hadMatchCursor)) {
-                resetAccounts += 1;
-            }
+            if (accountSkippedByCutoff && !accountReset) skippedAccounts += 1;
+            if (accountReset) resetAccounts += 1;
         }
 
         return {

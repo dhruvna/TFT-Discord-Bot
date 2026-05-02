@@ -1,7 +1,14 @@
 // src/commands/recapconfig.js
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { loadDb, getGuildRecapConfig, setGuildRecapConfigInStore } from "../storage.js";
-import { GAME_TYPES, RANKED_QUEUE_CHOICES, queueLabel } from "../constants/queues.js";
+import {
+  GAME_TYPES,
+  GAME_TYPE_CHOICES,
+  ALL_RECAP_QUEUE_CHOICES,
+  defaultRankedQueueForGame,
+  queueChoicesForRecap,
+  queueLabel,
+} from "../constants/queues.js";
 import { RECAP_MODE_CHOICES, formatRecapScheduleTime, modeLabel } from "../constants/recap.js";
 import config from "../config.js";
 
@@ -25,6 +32,13 @@ export default {
     )
     .addStringOption((opt) =>
       opt
+        .setName("game")
+        .setDescription("Game for recap autopost")
+        .setRequired(false)
+        .addChoices(...GAME_TYPE_CHOICES)
+    )
+    .addStringOption((opt) =>
+      opt
         .setName("mode")
         .setDescription("Daily or weekly recap content")
         .setRequired(false)
@@ -35,7 +49,7 @@ export default {
         .setName("queue")
         .setDescription("Which queue to post")
         .setRequired(false)
-        .addChoices(...RANKED_QUEUE_CHOICES)
+        .addChoices(...ALL_RECAP_QUEUE_CHOICES)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
@@ -62,7 +76,8 @@ export default {
         content:
           `**Recap autopost status**\n` +
           `• Enabled: **${cfg.enabled ? "Yes" : "No"}**\n` +
-          `• Queue: **${queueLabel(GAME_TYPES.TFT, cfg.queue)}**\n` +
+          `• Game: **${cfg.game === GAME_TYPES.LOL ? "LoL" : "TFT"}**\n` +
+          `• Queue: **${queueLabel(cfg.game ?? GAME_TYPES.TFT, cfg.queue)}**\n` +
           `• Mode: **${modeLabel(cfg.mode)}**\n` +
           `• Time: **${scheduleText}**\n` +
           `• Last sent: ${cfg.lastSentYmd ?? "—"}`,
@@ -72,8 +87,13 @@ export default {
     }
 
     const enabled = interaction.options.getBoolean("enabled"); // required unless status=true
-    const mode = interaction.options.getString("mode"); // optional
-    const queue = interaction.options.getString("queue"); // optional
+    const game = interaction.options.getString("game") ?? GAME_TYPES.TFT; // optional, defaults TFT for compatibility
+    const rawQueue = interaction.options.getString("queue"); // optional
+    const validQueueTypes = new Set(queueChoicesForRecap(game).map((choice) => choice.value));
+    const queue = rawQueue && validQueueTypes.has(rawQueue)
+      ? rawQueue
+      : (rawQueue ? defaultRankedQueueForGame(game) : null);
+
 
     if (enabled === null) {
       await interaction.reply({
@@ -85,6 +105,7 @@ export default {
 
     const patch = {
       enabled,
+      ...(game ? { game } : {}),
       ...(mode ? { mode } : {}),
       ...(queue ? { queue } : {}),
       ...(enabled ? { lastSentYmd: null } : {}), // when enabling, allow next 9am to fire
@@ -97,7 +118,7 @@ export default {
 
     await interaction.reply({
       content: enabled
-        ? `✅ Autopost enabled: **${queueLabel(GAME_TYPES.TFT, updated.queue)}** • **${modeLabel(updated.mode)}** • posts at **${scheduleText}**`
+        ? `✅ Autopost enabled: **${updated.game === GAME_TYPES.LOL ? "LoL" : "TFT"} / ${queueLabel(updated.game ?? GAME_TYPES.TFT, updated.queue)}** • **${modeLabel(updated.mode)}** • posts at **${scheduleText}**`
         : `🛑 Autopost disabled.`,
       ephemeral: true,
     });

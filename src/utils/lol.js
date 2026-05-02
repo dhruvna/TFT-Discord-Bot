@@ -106,7 +106,6 @@ export async function buildLolMatchResultEmbed({
         .setTimestamp(new Date())
         .setColor(didWin ? 0x2dcf71 : 0xf34e3c)
         .setTitle(`${label} • ${didWin ? "Victory" : "Defeat"} • ${riotId}`)
-        .setDescription(didWin ? "Clean win. GG!" : "Tough game. Next one is yours.");
 
 
     const lpChangeValue = isRankedMatch ? formatDelta(didWin ? Math.abs(delta) : -Math.abs(delta)) : "—";

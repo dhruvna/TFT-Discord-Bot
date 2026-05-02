@@ -19,7 +19,7 @@ import { RECAP_MODE_CHOICES } from "../constants/recap.js";
 export default {
   data: new SlashCommandBuilder()
     .setName("recap")
-    .setDescription("Show Ranked or Double Up recap now, either daily or weekly.")
+    .setDescription("Show a TFT recap now (Ranked or Double Up), daily or weekly.")
     .addStringOption((opt) =>
       opt
         .setName("game")
