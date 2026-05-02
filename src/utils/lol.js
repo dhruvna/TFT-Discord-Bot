@@ -117,15 +117,13 @@ export async function buildLolMatchResultEmbed({
     const totalCs = Number(participant?.totalMinionsKilled ?? 0) + Number(participant?.neutralMinionsKilled ?? 0);
     const duration = formatDurationFromSeconds(participant?.timePlayed ?? 0);
     const csPerMin = duration === "Unknown" ? null : totalCs / (Number(participant?.timePlayed) / 60);
-    const csOrVisionValue = Number.isFinite(csPerMin) && csPerMin > 0
-        ? `${csPerMin.toFixed(1)} CS/min`
-        : (Number.isFinite(participant?.visionScore) ? `${participant.visionScore} vision` : "—");
+    const csPerMinLabel = Number.isFinite(csPerMin) && csPerMin > 0 ? `${csPerMin.toFixed(1)} CS/min` : null;
 
     embed.addFields(
         { name: "Champion", value: championName.slice(0, 1024), inline: true },
         { name: "K/D/A", value: kda, inline: true },
         { name: "Duration", value: duration, inline: true },
-        { name: "CS/Vision", value: csOrVisionValue, inline: true },
+        { name: "CS/min", value: csPerMinLabel, inline: true },
         { name: didWin ? "LP Win" : "LP Loss", value: lpChangeValue, inline: true },
         { name: "Rank", value: rankValue.slice(0, 1024), inline: true },
     );

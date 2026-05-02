@@ -57,6 +57,10 @@ Current behavior:
 - LoL `/leaderboard` parity (current leaderboard is TFT-only)
 - LoL `/recap` parity and LoL recap autopost support
 - Optional per-game channel routing/filter presets (finer TFT vs LoL control)
+- change time that displays to the time of the game? if possible (requires utc -> human readable time conversion)
+- change champ name to damage done
+- recap stuff/leaderboard stuff
+
 
 ### Platform / Operations
 - Host bot 24/7

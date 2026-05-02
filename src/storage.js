@@ -15,6 +15,7 @@ const DATA_PATH = process.env.DATA_PATH
 let writeQueue = Promise.resolve();
 const DISCORD_SNOWFLAKE_REGEX = /^\d{17,20}$/;
 const RECAP_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_RECAP_CONFIG_ID = 'default';
 export const TRACKED_GAMES = {
     TFT: 'tft',
     LOL: 'lol',
@@ -137,27 +138,40 @@ function ensureGuild(db, guildId) {
             Number.isFinite(numericCutoff) && numericCutoff > 0 ? numericCutoff : null;
     }
 
-    if (!('recap' in db[guildId]) || typeof db[guildId].recap !== 'object' || db[guildId].recap === null) {
-        db[guildId].recap = {
-            enabled: false,
-            mode: 'DAILY',          // DAILY | WEEKLY
-            game: 'TFT',
-            queue: 'RANKED_TFT',    // RANKED_TFT | RANKED_TFT_DOUBLE_UP
-            lastSentYmd: null,      // "YYYY-MM-DD" to prevent double posting
-        };
+    // if (!('recap' in db[guildId]) || typeof db[guildId].recap !== 'object' || db[guildId].recap === null) {
+    //     db[guildId].recap = {
+    //         enabled: false,
+    //         mode: 'DAILY',          // DAILY | WEEKLY
+    //         game: 'TFT',
+    //         queue: 'RANKED_TFT',    // RANKED_TFT | RANKED_TFT_DOUBLE_UP
+    //         lastSentYmd: null,      // "YYYY-MM-DD" to prevent double posting
+    //     };
+    if (!Array.isArray(db[guildId].recapConfigs)) {
+        const legacyRecap = 
+            db[guildId].recap && typeof db[guildId].recap === 'object'
+            ? db[guildId].recap
+            : null;
+        db[guildId].recapConfigs = [normalizeRecapConfig(legacyRecap, DEFAULT_RECAP_CONFIG_ID)];
     } else {
-        // If older configs exist, ensure required keys exist.
-        if (!('enabled' in db[guildId].recap)) db[guildId].recap.enabled = false;
-        if (!('mode' in db[guildId].recap)) db[guildId].recap.mode = 'DAILY';
-        if (!('game' in db[guildId].recap)) db[guildId].recap.game = 'TFT';
-        if (!('queue' in db[guildId].recap)) db[guildId].recap.queue = 'RANKED_TFT';
-        if (!('lastSentYmd' in db[guildId].recap)) db[guildId].recap.lastSentYmd = null;
-
-        // Optional cleanup: remove legacy hour/minute if they exist
-        if ('hour' in db[guildId].recap) delete db[guildId].recap.hour;
-        if ('minute' in db[guildId].recap) delete db[guildId].recap.minute;
+        db[guildId].recapConfigs = db[guildId].recapConfigs.map((cfx, idx) =>
+            normalizeRecapConfig(config, idx === 0 ? DEFAULT_RECAP_CONFIG_ID : `cfg-${idx + 1}`)
+        );
     }
+    // Backward compatibility view for legacy callers during transition.
+    db[guildId].recap = db[guildId].recapConfigs[0] ?? normalizeRecapConfig(null, DEFAULT_RECAP_CONFIG_ID);
     return db[guildId];
+}
+
+function normalizeRecapConfig(config, fallbackId = DEFAULT_RECAP_CONFIG_ID) {
+    const safe = config && typeof config === 'object' ? config : {};
+    return {
+        id: typeof safe.id === 'string' && safe.id.trim() ? safe.id : fallbackId,
+        enabled: Boolean(safe.enabled),
+        mode: safe.mode ?? 'DAILY',
+        game: safe.game ?? 'TFT',
+        queue: safe.queue ?? 'RANKED_TFT',
+        lastSentYmd: safe.lastSentYmd ?? null,
+    };
 }
 
 function readLegacyRankByQueue(account) {
@@ -321,7 +335,12 @@ async function setGuildChannel(db, guildId, channelId) {
 
 export function getGuildRecapConfig(db, guildId) {
     const g = ensureGuild(db, guildId);
-    return g.recap;
+    return g.recapConfigs[0];
+}
+
+export function getGuildRecapConfigs(db, guildId) {
+    const g = ensureGuild(db, guildId);
+    return g.recapConfigs;
 }
 
 export function getGuildTftConfig(db, guildId) {
@@ -331,9 +350,23 @@ export function getGuildTftConfig(db, guildId) {
 
 export function setGuildRecapConfig(db, guildId, patch) {
     const g = ensureGuild(db, guildId);
-    g.recap = { ...g.recap, ...patch };
-    return g.recap;
+    const current = g.recapConfigs[0] ?? normalizeRecapConfig(null, DEFAULT_RECAP_CONFIG_ID);
+    g.recapConfigs[0] = normalizeRecapConfig({ ...current, ...patch }, current.id);
+    g.recap = g.recapConfigs[0];
+    return g.recapConfigs[0];
 }
+
+export function setGuildRecapConfigsInStore(guildId, recapConfigs) {
+    return mutateGuild(guildId, ({ guild }) => {
+        const incoming = Array.isArray(recapConfigs) ? recapConfigs : [];
+        guild.recapConfigs = incoming.map((cfg, idx) =>
+            normalizeRecapConfig(cfg, idx === 0 ? DEFAULT_RECAP_CONFIG_ID : `cfg-${idx + 1}`)
+        );
+        guild.recap = guild.recapConfigs[0] ?? normalizeRecapConfig(null, DEFAULT_RECAP_CONFIG_ID);
+        return { didChange: true, recapConfigs: guild.recapConfigs };
+    }).then((result) => result?.recapConfigs ?? []);
+}
+
 
 export async function setGuildRecapConfigInStore(guildId, patch) {
     return mutateGuild(guildId, ({ db }) => {
@@ -349,6 +382,19 @@ export async function setGuildRecapLastSentYmdInStore(guildId, lastSentYmd) {
             return { didChange: false, updated: false };
         }
         guild.recap.lastSentYmd = lastSentYmd;
+        return { didChange: true, updated: true };
+    }).then((result) => result?.updated ?? false);
+}
+
+export async function setGuildRecapLastSentYmdByIdInStore(guildId, configId, lastSentYmd) {
+    return mutateGuild(guildId, ({ guild }) => {
+        const recapConfigs = Array.isArray(guild?.recapConfigs) ? guild.recapConfigs : [];
+        const idx = recapConfigs.findIndex((cfg) => cfg?.id === configId);
+        if (idx < 0) return { didChange: false, updated: false };
+        const current = recapConfigs[idx]?.lastSentYmd ?? null;
+        if (current === lastSentYmd) return { didChange: false, updated: false };
+        recapConfigs[idx].lastSentYmd = lastSentYmd;
+        guild.recap = recapConfigs[0] ?? guild.recap;
         return { didChange: true, updated: true };
     }).then((result) => result?.updated ?? false);
 }
