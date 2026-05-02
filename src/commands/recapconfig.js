@@ -16,6 +16,12 @@ function normalizeId(raw) {
   return (raw ?? "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
 }
 
+function formatAllowedQueueChoices(game) {
+  return queueChoicesForRecap(game)
+    .map((choice) => `\`${choice.value}\` (${choice.name})`)
+    .join(", ");
+}
+
 export default {
   data: new SlashCommandBuilder()
     .setName("recapconfig")
@@ -96,7 +102,15 @@ export default {
     const current = recapConfigs[targetIdx];
     const nextGame = game ?? current.game ?? GAME_TYPES.TFT;
     const validQueueTypes = new Set(queueChoicesForRecap(nextGame).map((choice) => choice.value));
-    const nextQueue = rawQueue ? (validQueueTypes.has(rawQueue) ? rawQueue : defaultRankedQueueForGame(nextGame)) : current.queue;
+    
+    if (rawQueue && !validQueueTypes.has(rawQueue)) {
+      return interaction.reply({
+        content: `Invalid queue for ${nextGame === GAME_TYPES.LOL ? "LoL" : "TFT"}. Allowed values: ${formatAllowedQueueChoices(nextGame)}.`,
+        ephemeral: true,
+      });
+    }
+
+    const nextQueue = rawQueue ?? current.queue ?? defaultRankedQueueForGame(nextGame);
 
     recapConfigs[targetIdx] = {
       ...current,

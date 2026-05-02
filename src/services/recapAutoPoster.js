@@ -38,6 +38,49 @@ export function shouldFireRecapAutopost({
     };
 }
 
+async function postRecapForConfig({
+    channel,
+    guild,
+    guildId,
+    recapConfig,
+    now,
+    today,
+    fireHour,
+    fireMinute,
+}) {
+    const game = recapConfig.game ?? GAME_TYPES.TFT;
+    const mode = recapConfig.mode ?? 'DAILY';
+    const queue = recapConfig.queue ?? defaultRankedQueueForGame(game);
+    const lastSentYmd = recapConfig.lastSentYmd ?? null;
+    const configId = recapConfig.id ?? 'default';
+
+    const { shouldFire, scheduledTime } = shouldFireRecapAutopost({
+        now,
+        fireHour,
+        fireMinute,
+        lastSentYmd,
+    });
+
+    console.log(
+        `[recap-autopost] evaluate guild=${guildId} config=${configId} mode=${mode} game=${game} queue=${queue} now=${now.toISOString()} scheduledTime=${scheduledTime.toISOString()} lastSentYmd=${lastSentYmd ?? 'null'} shouldFire=${shouldFire}`
+    );
+
+    if (!shouldFire) return;
+
+    console.log(
+        `[recap-autopost] firing guild=${guildId} config=${configId} mode=${mode} game=${game} queue=${queue}`
+    );
+
+    const hours = hoursForMode(mode);
+    const cutoff = getRecapCutoffTimestamp({ now, hours });
+    const accounts = guild?.accounts ?? [];
+    const rows = computeRecapRows(accounts, cutoff, queue, game);
+    const embed = buildRecapEmbed({ rows, mode, game, queue, hours });
+
+    await channel.send({ embeds: [embed] });
+    const updated = await setGuildRecapLastSentYmdByIdInStore(guildId, configId, today);
+    console.log(`[recap-autopost] sent guild=${guildId} config=${configId} mode=${mode} game=${game} queue=${queue} today=${today} stored=${updated}`);
+}
 
 // === Service entry point ===
 // Polls on a configurable interval to see if a recap should be posted.
@@ -45,9 +88,9 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute, pollI
     const FIRE_HOUR = fireHour ?? config.recapAutopostHour;
     const FIRE_MINUTE = fireMinute ?? config.recapAutopostMinute;
     const POLL_INTERVAL_MS = pollIntervalMs ?? 5 * 60 * 1000;
+
     // One polling iteration. Splitting this out keeps the interval handler small.
     const tick = async () => {
-
         const db = await loadDb();
         const guildIds = getKnownGuildIds(db);
         if (guildIds.length === 0) return;
@@ -66,30 +109,6 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute, pollI
 
         for (const guildId of guildIds) {
             const guild = db[guildId];
-            // if (!guild?.recap?.enabled) continue;
-
-            // const {
-            //     game = GAME_TYPES.TFT,
-            //     mode = 'DAILY',
-            //     queue: configuredQueue,
-            //     lastSentYmd = null,
-            // } = guild.recap;
-
-            // const queue = configuredQueue ?? defaultRankedQueueForGame(game);
-
-            // const { shouldFire, scheduledTime: guildScheduledTime } = shouldFireRecapAutopost({
-            //     now,
-            //     fireHour: FIRE_HOUR,
-            //     fireMinute: FIRE_MINUTE,
-            //     lastSentYmd,
-            // });
-
-            // console.log(
-            //     `[recap-autopost] evaluate guild=${guildId} now=${now.toISOString()} scheduledTime=${guildScheduledTime.toISOString()} lastSentYmd=${lastSentYmd ?? 'null'} shouldFire=${shouldFire}`
-            // );
-
-            // if (!shouldFire) continue;
-
             const recapConfigs = Array.isArray(guild?.recapConfigs) ? guild.recapConfigs : (guild?.recap ? [guild.recap] : []);
             const enabledConfigs = recapConfigs.filter((cfg) => cfg?.enabled);
             if (enabledConfigs.length === 0) continue;
@@ -106,58 +125,23 @@ export async function startRecapAutoposter(client, { fireHour, fireMinute, pollI
 
             if (!channel || !channel.isTextBased()) {
                 console.log(
-                `[recap-autopost] skip guild=${guildId} (channel not found or not text-based) channelId=${channelId}`
+                    `[recap-autopost] skip guild=${guildId} (channel not found or not text-based) channelId=${channelId}`
                 );
                 continue;
             }
 
-            // console.log(
-            //     `[recap-autopost] firing guild=${guildId} mode=${mode} game=${game} queue=${queue} channelId=${channelId}`
-            // );
-
-            // // Build recap rows from stored recapEvents (same logic as /recap)
-            // const hours = hoursForMode(mode);
-            // const cutoff = getRecapCutoffTimestamp({ now, hours });
-
             for (const recapConfig of enabledConfigs) {
-                const game = recapConfig.game ?? GAME_TYPES.TFT;
-                const mode = recapConfig.mode ?? 'DAILY';
-                const queue = recapConfig.queue ?? defaultRankedQueueForGame(game);
-                const lastSentYmd = recapConfig.lastSentYmd ?? null;
-                const configId = recapConfig.id ?? 'default';
-                const { shouldFire, scheduledTime: guildScheduledTime } = shouldFireRecapAutopost({
+                await postRecapForConfig({
+                    channel,
+                    guild,
+                    guildId,
+                    recapConfig,
                     now,
+                    today,
                     fireHour: FIRE_HOUR,
                     fireMinute: FIRE_MINUTE,
-                    lastSentYmd,
                 });
-                console.log(
-                    `[recap-autopost] evaluate guild=${guildId} config=${configId} now=${now.toISOString()} scheduledTime=${guildScheduledTime.toISOString()} lastSentYmd=${lastSentYmd ?? 'null'} shouldFire=${shouldFire}`
-                );
-                if (!shouldFire) continue;
-
-                console.log(
-                    `[recap-autopost] firing guild=${guildId} config=${configId} mode=${mode} game=${game} queue=${queue} channelId=${channelId}`
-                );
-                const hours = hoursForMode(mode);
-                const cutoff = getRecapCutoffTimestamp({ now, hours });
-                const accounts = guild?.accounts ?? [];
-                const rows = computeRecapRows(accounts, cutoff, queue, game);
-                const embed = buildRecapEmbed({ rows, mode, game, queue, hours });
-                await channel.send({ embeds: [embed] });
-                const updated = await setGuildRecapLastSentYmdByIdInStore(guildId, configId, today);
-                console.log(`[recap-autopost] sent guild=${guildId} config=${configId} today=${today} stored=${updated}`);
             }
-
-            // const accounts = guild?.accounts ?? [];
-            // const rows = computeRecapRows(accounts, cutoff, queue, game);
-            // const embed = buildRecapEmbed({ rows, mode, game, queue, hours });
-            
-            // await channel.send({ embeds: [embed] });
-            
-            // // Persist the send date to prevent duplicate posts on the same day.
-            // const updated = await setGuildRecapLastSentYmdInStore(guildId, today);
-            // console.log(`[recap-autopost] sent guild=${guildId} today=${today} stored=${updated}`);
         }
     };
 

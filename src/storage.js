@@ -3,7 +3,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_ANNOUNCE_QUEUES } from './constants/queues.js';
-import { config } from 'node:process';
+import {
+    DEFAULT_RECAP_CONFIG_ID,
+    TRACKED_GAMES,
+    normalizeAccountTracking,
+    normalizeIdentityNamespace,
+    normalizeAccountIdentity,
+    normalizeRecapConfig,
+} from './storage/normalize.js';
 
 // === File locations ===
 // Use a default path in the repo while allowing overrides via env vars.
@@ -12,36 +19,14 @@ const DATA_PATH = process.env.DATA_PATH
     ? path.resolve(process.env.DATA_PATH)
     : path.join(process.env.DATA_DIR ?? path.dirname(DEFAULT_DATA_PATH), 'registrations.json');
 
+// I/O + mutation orchestration layer: file access, queueing, and store-level state transitions.
+// Keep pure shape-normalization logic in ./storage/normalize.js.
 // Serialize write operations so RMW cycles don't collide.
 let writeQueue = Promise.resolve();
 const DISCORD_SNOWFLAKE_REGEX = /^\d{17,20}$/;
 const RECAP_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-const DEFAULT_RECAP_CONFIG_ID = 'default';
-export const TRACKED_GAMES = {
-    TFT: 'tft',
-    LOL: 'lol',
-};
 
-function normalizeIdentityNamespace(identityNamespace, fallbackPuuid = null) {
-    const safeNamespace =
-        identityNamespace && typeof identityNamespace === 'object' ? identityNamespace : {};
-    return {
-        ...safeNamespace,
-        puuid: safeNamespace.puuid ?? fallbackPuuid ?? null,
-    };
-}
-
-function normalizeAccountIdentity(account) {
-    const safeIdentity = account?.identity && typeof account.identity === 'object'
-        ? account.identity
-        : {};
-    const legacyPuuid = account?.puuid ?? null;
-    return {
-        ...safeIdentity,
-        [TRACKED_GAMES.TFT]: normalizeIdentityNamespace(safeIdentity[TRACKED_GAMES.TFT], legacyPuuid),
-        [TRACKED_GAMES.LOL]: normalizeIdentityNamespace(safeIdentity[TRACKED_GAMES.LOL], null),
-    };
-}
+export { DEFAULT_RECAP_CONFIG_ID, TRACKED_GAMES, normalizeAccountTracking, normalizeIdentityNamespace, normalizeAccountIdentity, normalizeRecapConfig };
 
 function enqueueWrite(operation) {
     const run = writeQueue.then(operation, operation);
@@ -153,103 +138,6 @@ function ensureGuild(db, guildId) {
     // Backward compatibility view for legacy callers during transition.
     db[guildId].recap = db[guildId].recapConfigs[0] ?? normalizeRecapConfig(null, DEFAULT_RECAP_CONFIG_ID);
     return db[guildId];
-}
-
-function normalizeRecapConfig(config, fallbackId = DEFAULT_RECAP_CONFIG_ID) {
-    const safe = config && typeof config === 'object' ? config : {};
-    return {
-        id: typeof safe.id === 'string' && safe.id.trim() ? safe.id : fallbackId,
-        enabled: Boolean(safe.enabled),
-        mode: safe.mode ?? 'DAILY',
-        game: safe.game ?? 'TFT',
-        queue: safe.queue ?? 'RANKED_TFT',
-        lastSentYmd: safe.lastSentYmd ?? null,
-    };
-}
-
-function readLegacyRankByQueue(account) {
-    return account?.lastRankByQueue && typeof account.lastRankByQueue === 'object'
-        ? account.lastRankByQueue
-        : {};
-}
-
-function readLegacyRecapEvents(account) {
-    return Array.isArray(account?.recapEvents) ? account.recapEvents : [];
-}
-
-function readLegacyLastMatchId(account) {
-    return account?.lastMatchId ?? null;
-}
-
-function normalizeTrackedGameNamespace(
-    gameState,
-    {
-        fallbackEnabled = true,
-        fallbackLastMatchId = null,
-        fallbackLastMatchAt = null,
-        fallbackLastRankByQueue = {},
-        fallbackRecapEvents = [],
-    } = {}
-) {
-    const safeGameState = gameState && typeof gameState === 'object' ? gameState : {};
-    const numericLastMatchAt = Number(safeGameState.lastMatchAt ?? fallbackLastMatchAt ?? 0);
-    const enabled =
-        typeof safeGameState.enabled === 'boolean'
-            ? safeGameState.enabled
-            : Boolean(fallbackEnabled);
-    return {
-        ...safeGameState,
-        enabled,
-        lastMatchId: safeGameState.lastMatchId ?? fallbackLastMatchId,
-        lastMatchAt: Number.isFinite(numericLastMatchAt) && numericLastMatchAt > 0 ? numericLastMatchAt : null,
-        lastRankByQueue:
-            safeGameState.lastRankByQueue && typeof safeGameState.lastRankByQueue === 'object'
-                ? safeGameState.lastRankByQueue
-                : fallbackLastRankByQueue,
-        recapEvents: Array.isArray(safeGameState.recapEvents) ? safeGameState.recapEvents : fallbackRecapEvents,
-    };
-}
-
-export function normalizeAccountTracking(account) {
-    if (!account || typeof account !== 'object') return account;
-
-    const normalizedAccount = {
-        ...account,
-        identity: normalizeAccountIdentity(account),
-    };
-
-    const trackedGames = account.trackedGames && typeof account.trackedGames === 'object'
-        ? account.trackedGames
-        : {};
-
-    const tftTracked = normalizeTrackedGameNamespace(trackedGames[TRACKED_GAMES.TFT], {
-        fallbackEnabled: true,
-        fallbackLastMatchId: readLegacyLastMatchId(account),
-        fallbackLastMatchAt: null,
-        fallbackLastRankByQueue: readLegacyRankByQueue(account),
-        fallbackRecapEvents: readLegacyRecapEvents(account),
-    });
-    
-    const lolTracked = normalizeTrackedGameNamespace(trackedGames[TRACKED_GAMES.LOL], {
-        fallbackEnabled: true,
-        fallbackLastMatchId: null,
-        fallbackLastMatchAt: null,
-        fallbackLastRankByQueue: {},
-        fallbackRecapEvents: [],
-    });
-
-    normalizedAccount.trackedGames = {
-        ...trackedGames,
-        [TRACKED_GAMES.TFT]: tftTracked,
-        [TRACKED_GAMES.LOL]: lolTracked,
-    };
-
-    if ('lastMatchId' in normalizedAccount) delete normalizedAccount.lastMatchId;
-    if ('lastRankByQueue' in normalizedAccount) delete normalizedAccount.lastRankByQueue;
-    if ('recapEvents' in normalizedAccount) delete normalizedAccount.recapEvents;
-    if ('puuid' in normalizedAccount) delete normalizedAccount.puuid;
-    
-    return normalizedAccount;
 }
 
 export function getTrackedGameIdentity(account, gameKey) {

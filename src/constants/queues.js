@@ -82,8 +82,8 @@ export const TFT_RECAP_QUEUE_CHOICES = Object.freeze([
 ]);
 
 export const LOL_RECAP_QUEUE_CHOICES = Object.freeze([
-    { name: "Ranked Solo/Duo", value: LOL_QUEUE_TYPES.RANKED_SOLO_DUO },
-    { name: "Ranked Flex", value: LOL_QUEUE_TYPES.RANKED_FLEX },
+    { name: "LoL Ranked Solo/Duo", value: LOL_QUEUE_TYPES.RANKED_SOLO_DUO },
+    { name: "LoL Ranked Flex", value: LOL_QUEUE_TYPES.RANKED_FLEX },
 ]);
 
 export const TFT_LEADERBOARD_QUEUE_CHOICES = TFT_RECAP_QUEUE_CHOICES;
@@ -109,6 +109,31 @@ export function queueChoicesForRecap(game = GAME_TYPES.TFT) {
 
 export function queueChoicesForLeaderboard(game = GAME_TYPES.TFT) {
     return game === GAME_TYPES.LOL ? LOL_LEADERBOARD_QUEUE_CHOICES : TFT_LEADERBOARD_QUEUE_CHOICES;
+}
+
+export function parseQueueWithGameValidation({
+    game,
+    rawQueue,
+    queueChoices,
+}) {
+    if (!rawQueue) {
+        return { queue: defaultRankedQueueForGame(game), error: null };
+    }
+
+    const validChoices = queueChoices(game);
+    const validQueueTypes = new Set(validChoices.map((choice) => choice.value));
+    if (validQueueTypes.has(rawQueue)) {
+        return { queue: rawQueue, error: null };
+    }
+
+    const matchedGame = queueChoices(GAME_TYPES.TFT).some((choice) => choice.value === rawQueue)
+        ? GAME_TYPES.TFT
+        : (queueChoices(GAME_TYPES.LOL).some((choice) => choice.value === rawQueue) ? GAME_TYPES.LOL : "Unknown");
+
+    return {
+        queue: null,
+        error: `queue \`${rawQueue}\` belongs to game ${matchedGame}; selected game is ${game}.`,
+    };
 }
 
 // === Queue helpers ===

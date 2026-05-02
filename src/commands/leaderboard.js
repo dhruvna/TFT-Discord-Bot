@@ -8,6 +8,7 @@ import {
   GAME_TYPE_CHOICES,
   ALL_LEADERBOARD_QUEUE_CHOICES,
   defaultRankedQueueForGame,
+  parseQueueWithGameValidation,
   queueChoicesForLeaderboard,
   queueLabel,
 } from "../constants/queues.js";
@@ -74,7 +75,7 @@ export default {
     .addStringOption((opt) =>
       opt
         .setName("queue")
-        .setDescription("Which ladder?")
+        .setDescription("Which ladder? (TFT + LoL options; validated against selected game)")
         .setRequired(false)
         .addChoices(...ALL_LEADERBOARD_QUEUE_CHOICES)
     )
@@ -100,10 +101,13 @@ export default {
 
     const game = interaction.options.getString("game") || GAME_TYPES.TFT;
     const rawQueueType = interaction.options.getString("queue");
-    const validQueueTypes = new Set(queueChoicesForLeaderboard(game).map((choice) => choice.value));
-    const queueType = validQueueTypes.has(rawQueueType)
-      ? rawQueueType
-      : defaultRankedQueueForGame(game);
+    const parsedQueue = parseQueueWithGameValidation({ game, rawQueue: rawQueueType, queueChoices: queueChoicesForLeaderboard });
+    if (parsedQueue.error) {
+      const validQueues = queueChoicesForLeaderboard(game).map((choice) => `\`${choice.name}\``).join(", ");
+      await interaction.editReply(`${parsedQueue.error} Choose one of: ${validQueues}.`);
+      return;
+    }
+    const queueType = parsedQueue.queue ?? defaultRankedQueueForGame(game);
     const limit = interaction.options.getInteger("limit") ?? 15;
 
     const accounts = await listGuildAccounts(guildId);

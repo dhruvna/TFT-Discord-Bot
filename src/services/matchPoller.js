@@ -81,20 +81,21 @@ async function fetchMatchIds({ riotLimiter, account, count, start = 0 }) {
 }
 
 async function fetchMatch({ riotLimiter, account, matchId, game }) {
-    if (game === "TFT") {
+    if (game === GAME_TYPES.TFT) {
         return getTFTMatch({ 
             regional: account.regional, 
             matchId,
             limiter: riotLimiter,
         });
     }
-    if (game === "LOL") {
+    if (game === GAME_TYPES.LOL) {
     return getLolMatch({
             regional: account.regional,
             matchId,
             limiter: riotLimiter,
         });
     }
+    throw new Error(`[match-poller] Unsupported game type: ${String(game)}`);
 }
 
 async function fetchLolMatchIds({ riotLimiter, account, count, start = 0 }) {
@@ -450,7 +451,12 @@ export async function startMatchPoller(client) {
                             const preparedLolMatches = [];
 
                             for (const matchId of orderedLolMatchIds) {
-                                const match = await fetchMatch({ riotLimiter, account, matchId, game: "LOL" });
+                                const match = await fetchMatch({
+                                    riotLimiter,
+                                    account,
+                                    matchId,
+                                    game: GAME_TYPES.LOL,
+                                });
                                 const participants = match?.info?.participants ?? [];
                                 const me = participants.find((p) => p.puuid === lolIdentity.puuid);
 
@@ -588,7 +594,12 @@ export async function startMatchPoller(client) {
 
                     const preparedMatches = [];
                     for (const matchId of orderedMatchIds) {
-                        const match = await fetchMatch({ riotLimiter, account, matchId, game: "TFT" });
+                        const match = await fetchMatch({
+                            riotLimiter,
+                            account,
+                            matchId,
+                            game: GAME_TYPES.TFT,
+                        });
                         const participants = match?.info?.participants ?? [];
                         const me = participants.find((p) => p.puuid === tftIdentity.puuid);
                         const placement = me?.placement ?? null;
