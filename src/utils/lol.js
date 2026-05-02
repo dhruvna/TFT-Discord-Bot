@@ -89,6 +89,7 @@ export async function buildLolMatchResultEmbed({
     delta,
     afterRank,
     participant,
+    gameMs,
  }) {
     const matchUrl = getLolMatchUrl({ matchId });
     const label = buildLolQueueLabel(queueType);
@@ -103,29 +104,27 @@ export async function buildLolMatchResultEmbed({
 
     const embed = new EmbedBuilder()
         .setURL(matchUrl)
-        .setTimestamp(new Date())
+        // .setTimestamp(new Date())
+        .setTimestamp(Number.isFinite(Number(gameMs)) && Number(gameMs) > 0 ? new Date(Number(gameMs)) : new Date())
         .setColor(didWin ? 0x2dcf71 : 0xf34e3c)
         .setTitle(`${label} • ${didWin ? "Victory" : "Defeat"} • ${riotId}`)
-
 
     const lpChangeValue = isRankedMatch ? formatDelta(didWin ? Math.abs(delta) : -Math.abs(delta)) : "—";
     const rankValue = isRankedMatch ? formatRankWithLp(afterRank) : "—";
 
-    // TODO: Add champion icon
-
-    const championName = participant?.championName ?? "Unknown Champion";
+    const damageDealt = Number(participant?.totalDamageDealtToChampions ?? 0);
     const totalCs = Number(participant?.totalMinionsKilled ?? 0) + Number(participant?.neutralMinionsKilled ?? 0);
     const duration = formatDurationFromSeconds(participant?.timePlayed ?? 0);
     const csPerMin = duration === "Unknown" ? null : totalCs / (Number(participant?.timePlayed) / 60);
     const csPerMinLabel = Number.isFinite(csPerMin) && csPerMin > 0 ? `${csPerMin.toFixed(1)} CS/min` : null;
 
     embed.addFields(
-        { name: "Champion", value: championName.slice(0, 1024), inline: true },
         { name: "K/D/A", value: kda, inline: true },
-        { name: "Duration", value: duration, inline: true },
-        { name: "CS/min", value: csPerMinLabel, inline: true },
-        { name: didWin ? "LP Win" : "LP Loss", value: lpChangeValue, inline: true },
+        { name: "Damage", value: damageDealt.toLocaleString(), inline: true },
+        { name: "CS/min", value: csPerMinLabel, inline: true },        
         { name: "Rank", value: rankValue.slice(0, 1024), inline: true },
+        { name: didWin ? "LP Win" : "LP Loss", value: lpChangeValue, inline: true },
+        { name: "Duration", value: duration, inline: true },
     );
 
     try {
@@ -133,7 +132,6 @@ export async function buildLolMatchResultEmbed({
         const championIconUrl = buildChampionIconUrl(participant, version);
         if (championIconUrl) embed.setThumbnail(championIconUrl);
     } catch {
-        // Ignore Data Dragon failures and keep embed safe.
     }
     return { embed, files: [] };
 }

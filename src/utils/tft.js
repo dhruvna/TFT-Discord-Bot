@@ -91,6 +91,7 @@ export async function buildMatchResultEmbed({
     delta, 
     afterRank,
     participant,
+    gameMs,
  }) {
     const matchUrl = getTFTMatchUrl({ matchId });
     const label = labelForQueueType(queueType);
@@ -107,8 +108,10 @@ export async function buildMatchResultEmbed({
     const rankValue = isRanked ? formatRankWithLp(afterRank) : "—";
      
     // Start with a URL + timestamp so the embed is linkable and time-stamped
-    const embed = new EmbedBuilder().setURL(matchUrl).setTimestamp(new Date());
-    
+    const embed = new EmbedBuilder()
+        .setURL(matchUrl)
+        .setTimestamp(Number.isFinite(Number(gameMs)) && Number(gameMs) > 0 ? new Date(Number(gameMs)) : new Date());
+
     if (isRanked) {
         try {
             const thumbUrl = await getTftRegaliaThumbnailUrl({

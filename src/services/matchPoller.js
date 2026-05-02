@@ -237,6 +237,7 @@ async function announceMatchToDiscord({
     delta,
     afterRank,
     participant,
+    gameMs,
     guildId,
     channelId,
 }) {
@@ -255,6 +256,7 @@ async function announceMatchToDiscord({
         delta,
         afterRank,
         participant,
+        gameMs,
     });
     await channel.send({ embeds: [embed], files });
 }
@@ -267,6 +269,7 @@ async function announceLolMatchToDiscord({
     delta,
     afterRank,
     participant,
+    gameMs,
     guildId,
     channelId,
 }) {
@@ -284,6 +287,7 @@ async function announceLolMatchToDiscord({
         delta,
         afterRank,
         participant,
+        gameMs,
     });
     await channel.send({ embeds: [embed], files });
 }
@@ -531,6 +535,7 @@ export async function startMatchPoller(client) {
                                         delta,
                                         afterRank,
                                         participant: me,
+                                        gameMs,
                                         guildId,
                                         channelId: channelIdForGuild,
                                     });
@@ -707,6 +712,7 @@ export async function startMatchPoller(client) {
                             delta,
                             afterRank,
                             participant: me,
+                            gameMs,
                             guildId,
                             channelId: channelIdForGuild,
                         });
