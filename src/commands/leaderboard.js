@@ -5,11 +5,9 @@ import { listGuildAccounts } from '../storage.js';
 
 import {
   GAME_TYPES,
-  GAME_TYPE_CHOICES,
   ALL_LEADERBOARD_QUEUE_CHOICES,
   defaultRankedQueueForGame,
-  parseQueueWithGameValidation,
-  queueChoicesForLeaderboard,
+  gameFromQueue,
   queueLabel,
 } from "../constants/queues.js";
 import { getRankSnapshotForQueue } from "../utils/rankSnapshot.js";
@@ -64,18 +62,11 @@ function rankScore(rank) {
 export default {
   data: new SlashCommandBuilder()
     .setName("leaderboard")
-    .setDescription("Show server TFT leaderboard for registered accounts")
-    .addStringOption((opt) =>
-      opt
-        .setName("game")
-        .setDescription("Which game?")
-        .setRequired(false)
-        .addChoices(...GAME_TYPE_CHOICES)
-    )
+    .setDescription("Show server leaderboard for registered accounts by queue")
     .addStringOption((opt) =>
       opt
         .setName("queue")
-        .setDescription("Which ladder? (TFT + LoL options; validated against selected game)")
+        .setDescription("Which ladder? (TFT + LoL options)")
         .setRequired(false)
         .addChoices(...ALL_LEADERBOARD_QUEUE_CHOICES)
     )
@@ -99,15 +90,15 @@ export default {
 
     await interaction.deferReply();
 
-    const game = interaction.options.getString("game") || GAME_TYPES.TFT;
-    const rawQueueType = interaction.options.getString("queue");
-    const parsedQueue = parseQueueWithGameValidation({ game, rawQueue: rawQueueType, queueChoices: queueChoicesForLeaderboard });
-    if (parsedQueue.error) {
-      const validQueues = queueChoicesForLeaderboard(game).map((choice) => `\`${choice.name}\``).join(", ");
-      await interaction.editReply(`${parsedQueue.error} Choose one of: ${validQueues}.`);
+    const validQueueTypes = new Set(ALL_LEADERBOARD_QUEUE_CHOICES.map((choice) => choice.value));
+    if (rawQueueType && !validQueueTypes.has(rawQueueType)) {
+      const validQueues = ALL_LEADERBOARD_QUEUE_CHOICES.map((choice) => `\`${choice.name}\``).join(", ");
+      await interaction.editReply(`Invalid queue \`${rawQueueType}\`. Choose one of: ${validQueues}.`);
       return;
     }
-    const queueType = parsedQueue.queue ?? defaultRankedQueueForGame(game);
+    
+    const queueType = rawQueueType ?? defaultRankedQueueForGame(GAME_TYPES.TFT);
+    const game = gameFromQueue(queueType);
     const limit = interaction.options.getInteger("limit") ?? 15;
 
     const accounts = await listGuildAccounts(guildId);

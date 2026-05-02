@@ -8,11 +8,9 @@ import {
 } from "../utils/recap.js";
 import {
   GAME_TYPES,
-  GAME_TYPE_CHOICES,
   ALL_RECAP_QUEUE_CHOICES,
   defaultRankedQueueForGame,
-  parseQueueWithGameValidation,
-  queueChoicesForRecap,
+  gameFromQueue,
 } from "../constants/queues.js";
 import { RECAP_MODE_CHOICES } from "../constants/recap.js";
 
@@ -20,18 +18,11 @@ import { RECAP_MODE_CHOICES } from "../constants/recap.js";
 export default {
   data: new SlashCommandBuilder()
     .setName("recap")
-    .setDescription("Show a recap now for TFT or LoL, daily or weekly.")
-    .addStringOption((opt) =>
-      opt
-        .setName("game")
-        .setDescription("Game to recap")
-        .setRequired(false)
-        .addChoices(...GAME_TYPE_CHOICES)
-    )
+    .setDescription("Show a queue-based recap now, daily or weekly.")
     .addStringOption((opt) =>
       opt
         .setName("queue")
-        .setDescription("Queue to recap (TFT + LoL options; validated against selected game)")
+        .setDescription("Queue to recap (TFT + LoL options)")
         .setRequired(false)
         .addChoices(...ALL_RECAP_QUEUE_CHOICES)
     )
@@ -49,20 +40,19 @@ export default {
         /* ---------- POST RECAP ---------- */
         await interaction.deferReply();
 
-        const game = interaction.options.getString("game") ?? GAME_TYPES.TFT;
         const mode = interaction.options.getString("mode") ?? "DAILY";
         const rawQueue = interaction.options.getString("queue");
-        const parsedQueue = parseQueueWithGameValidation({ game, rawQueue, queueChoices: queueChoicesForRecap });
-        if (parsedQueue.error) {
-            const validQueues = queueChoicesForRecap(game).map((choice) => `\`${choice.name}\``).join(", ");
+        const validQueueTypes = new Set(ALL_RECAP_QUEUE_CHOICES.map((choice) => choice.value));
+        if (rawQueue && !validQueueTypes.has(rawQueue)) {
+            const validQueues = ALL_RECAP_QUEUE_CHOICES.map((choice) => `\`${choice.name}\``).join(", ");
             await interaction.editReply(
-                `${parsedQueue.error} Choose one of: ${validQueues}.`
+                `Invalid queue \`${rawQueue}\`. Choose one of: ${validQueues}.`
             );
             return;
         }
 
-        const queue = parsedQueue.queue ?? defaultRankedQueueForGame(game);
-        
+        const queue = rawQueue ?? defaultRankedQueueForGame(GAME_TYPES.TFT);
+        const game = gameFromQueue(queue);        
         const hours = hoursForMode(mode);
         const cutoff = Date.now() - hours * 60 * 60 * 1000;
 

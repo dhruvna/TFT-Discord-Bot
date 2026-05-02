@@ -290,12 +290,9 @@ async function announceLolMatchToDiscord({
 
 // Should this match be announced based on guild configuration?
 function shouldAnnounceMatch({ announceQueues, queueType }) {
+    // TODO: CAN ADD STUFF HERE IF NEED TO IMPROVE QUEUE SELECTION ALGO
     if (!announceQueues) return true;
     return announceQueues.includes(queueType);
-}
-
-function getEffectiveAnnounceQueues(announceQueues) {
-    return announceQueues;
 }
 
 // === Service entry point ===
@@ -426,10 +423,8 @@ export async function startMatchPoller(client) {
                                 );
                             }
                         }
-
-                    const announceQueues = getEffectiveAnnounceQueues(
-                        guild?.announceQueues ?? DEFAULT_ANNOUNCE_QUEUES
-                    );
+                    
+                    const announceQueues = guild?.announceQueues ?? DEFAULT_ANNOUNCE_QUEUES;
 
                     if (canPollLol) {
                         const unseenLolMatchIds = await detectUnseenMatchIds({

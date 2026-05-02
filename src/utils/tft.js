@@ -26,16 +26,6 @@ export function getQueueIdFromMatch(match) {
 // Convert queue id into human-friendly metadata.
 export function detectQueueMetaFromMatch(match) {
     const queueId = getQueueIdFromMatch(match);
-
-    // const queueId = getQueueIdFromMatch(match);
-    if (queueId === 1090) {
-        return {
-            queueId,
-            mode: "NORMAL",
-            queueType: TFT_QUEUE_TYPES.NORMAL,
-            label: queueLabel(GAME_TYPES.TFT, TFT_QUEUE_TYPES.NORMAL),
-        };
-    }
     if (queueId === 1100) {
         return { queueId, 
             mode: "RANKED", 
@@ -45,12 +35,11 @@ export function detectQueueMetaFromMatch(match) {
     }
     if (queueId === 1160) {
         return { queueId, 
-            mode: "DOUBLE UP (Workshop)", 
+            mode: "DOUBLE UP", 
             queueType: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP, 
             label: queueLabel(GAME_TYPES.TFT, TFT_QUEUE_TYPES.RANKED_DOUBLE_UP) 
         };
     }
-    
     return {
         queueId,
         mode: "UNKNOWN",

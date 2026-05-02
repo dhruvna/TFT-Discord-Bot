@@ -13,7 +13,6 @@ export const TRACKING_GAME_CHOICES = Object.freeze([
 ]);
 
 export const TFT_QUEUE_TYPES = Object.freeze({
-    NORMAL: "NORMAL_TFT",
     RANKED: "RANKED_TFT",
     RANKED_DOUBLE_UP: "RANKED_TFT_DOUBLE_UP",
     UNKNOWN: "UNKNOWN_TFT",
@@ -35,7 +34,6 @@ export const QUEUE_TYPES = TFT_QUEUE_TYPES;
 
 const QUEUE_LABELS_BY_GAME = Object.freeze({
     [GAME_TYPES.TFT]: Object.freeze({
-        [TFT_QUEUE_TYPES.NORMAL]: "Normal TFT",
         [TFT_QUEUE_TYPES.RANKED]: "Ranked TFT",
         [TFT_QUEUE_TYPES.RANKED_DOUBLE_UP]: "Double Up TFT",
         [TFT_QUEUE_TYPES.UNKNOWN]: "Unknown",
@@ -101,6 +99,12 @@ export const ALL_LEADERBOARD_QUEUE_CHOICES = Object.freeze([
 
 export function defaultRankedQueueForGame(game) {
     return game === GAME_TYPES.LOL ? LOL_QUEUE_TYPES.RANKED_SOLO_DUO : TFT_QUEUE_TYPES.RANKED;
+}
+
+export function gameFromQueue(queueType) {
+    if (!queueType) return GAME_TYPES.TFT;
+    const isLolQueue = Object.values(LOL_QUEUE_TYPES).includes(queueType);
+    return isLolQueue ? GAME_TYPES.LOL : GAME_TYPES.TFT;
 }
 
 export function queueChoicesForRecap(game = GAME_TYPES.TFT) {
