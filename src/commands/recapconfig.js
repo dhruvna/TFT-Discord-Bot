@@ -40,7 +40,7 @@ export default {
     const remove = interaction.options.getBoolean("remove") ?? false;
     const enabled = interaction.options.getBoolean("enabled");
     const game = interaction.options.getString("game");
-    const mode = interaction.options.getString("mode");
+    const mode = interaction.options.getString("mode") ?? null;
     const rawQueue = interaction.options.getString("queue");
 
     const db = await loadDb();
@@ -55,6 +55,17 @@ export default {
         content: `**Recap autopost status**\n• Time: **${scheduleText}**\n${lines.length ? lines.join("\n") : "No configs set."}`,
         ephemeral: true,
       });
+    }
+
+    if (mode !== null) {
+      const validModes = new Set(RECAP_MODE_CHOICES.map((choice) => choice.value));
+      if (!validModes.has(mode)) {
+        await interaction.reply({
+          content: `Invalid mode. Allowed values: ${[...validModes].join(", ")}.`,
+          ephemeral: true,
+        });
+        return;
+      }
     }
 
     const targetIdxBySlot = Number.isInteger(slot) ? slot - 1 : -1;
@@ -91,11 +102,10 @@ export default {
       ...current,
       ...(requestedId ? { id: requestedId } : {}),
       ...(enabled !== null ? { enabled } : {}),
-
       ...(game ? { game } : {}),
       ...(mode ? { mode } : {}),
-    ...(nextQueue ? { queue: nextQueue } : {}),
-    ...(enabled === true ? { lastSentYmd: null } : {}),
+      ...(nextQueue ? { queue: nextQueue } : {}),
+      ...(enabled === true ? { lastSentYmd: null } : {}),
     };
 
     recapConfigs = await setGuildRecapConfigsInStore(guildId, recapConfigs);
