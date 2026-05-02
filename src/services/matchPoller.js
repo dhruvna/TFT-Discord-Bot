@@ -363,6 +363,10 @@ export async function startMatchPoller(client) {
                     account = normalizeAccountTracking(account);
                     const lolIdentity = getLolIdentity(account);
                     const tftIdentity = getTftIdentity(account);
+                    const lolTracking = getLolTracking(account);
+                    const tftTracking = getTftTracking(account);
+                    const canPollLol = Boolean(lolIdentity?.puuid) && lolTracking?.enabled === true;
+                    const canPollTft = Boolean(tftIdentity?.puuid) && tftTracking?.enabled === true;
                     const refreshedRankSnapshotsByGame = {
                         [GAME_TYPES.LOL]: null,
                         [GAME_TYPES.TFT]: null,
@@ -374,7 +378,7 @@ export async function startMatchPoller(client) {
                     
                     try {
                         const now = Date.now();
-                        if (lolIdentity?.puuid && shouldRefreshRank(account, now, rankRefreshMs, GAME_TYPES.LOL)) {
+                        if (canPollLol && shouldRefreshRank(account, now, rankRefreshMs, GAME_TYPES.LOL)) {
                             try {
                                 const refreshedLol = await refreshLolRankSnapshot({ riotLimiter, account });
                                 refreshedRankSnapshotsByGame[GAME_TYPES.LOL] = refreshedLol;
@@ -384,12 +388,12 @@ export async function startMatchPoller(client) {
                                     trackedGames: {
                                         ...(account.trackedGames ?? {}),
                                         lol: {
-                                            ...getLolTracking(account),
+                                            ...lolTracking,
                                             lastRankByQueue: refreshedLol,
                                         },
                                     },
                                 });
-                                getLolTracking(account).lastRankByQueue = refreshedLol;
+                                lolTracking.lastRankByQueue = refreshedLol;
                             } catch (err) {
                                 console.error(
                                     `Error refreshing LoL rank for account ${account.key} (guild=${guildId}):`,
@@ -398,7 +402,7 @@ export async function startMatchPoller(client) {
                             }
                         }
 
-                        if (shouldRefreshRank(account, now, rankRefreshMs, GAME_TYPES.TFT) && tftIdentity?.puuid) {
+                        if (canPollTft && shouldRefreshRank(account, now, rankRefreshMs, GAME_TYPES.TFT)) {
                             try {
                                 const refreshed = await refreshRankSnapshot({ riotLimiter, account });
                                 refreshedRankSnapshotsByGame[GAME_TYPES.TFT] = refreshed;
@@ -408,12 +412,12 @@ export async function startMatchPoller(client) {
                                     trackedGames: {
                                         ...(account.trackedGames ?? {}),
                                         tft: {
-                                            ...getTftTracking(account),
+                                            ...tftTracking,
                                             lastRankByQueue: refreshed,
                                         },
                                     },
                                 });
-                                getTftTracking(account).lastRankByQueue = refreshed;
+                                tftTracking.lastRankByQueue = refreshed;
                             } catch (err) {
                                 console.error(
                                     `Error refreshing rank for account ${account.key} (guild=${guildId}):`,
@@ -426,8 +430,7 @@ export async function startMatchPoller(client) {
                         guild?.announceQueues ?? DEFAULT_ANNOUNCE_QUEUES
                     );
 
-                    if (lolIdentity?.puuid) {
-                        const lolTracking = getLolTracking(account);
+                    if (canPollLol) {
                         const unseenLolMatchIds = await detectUnseenMatchIds({
                             tracking: lolTracking,
                             matchBackfillLimit: MATCH_BACKFILL_LIMIT,
@@ -439,6 +442,9 @@ export async function startMatchPoller(client) {
                             const orderedLolMatchIds = [...unseenLolMatchIds].reverse();
                             const beforeLol = lolTracking.lastRankByQueue ?? {};
                             let afterLol = beforeLol;
+                            let lolRecapEvents = Array.isArray(lolTracking.recapEvents)
+                                ? lolTracking.recapEvents
+                                : [];
                             let lastProcessedLolMatchId = lolTracking.lastMatchId;
                             let lastProcessedLolMatchAt = Number(lolTracking.lastMatchAt ?? 0) || null;
                             const preparedLolMatches = [];
@@ -449,7 +455,8 @@ export async function startMatchPoller(client) {
                                 const me = participants.find((p) => p.puuid === lolIdentity.puuid);
 
                                 const meta = detectLolQueueMetaFromMatch(match);
-                                const queueType = meta.queueType || LOL_QUEUE_TYPES.UNKNOWN;
+                                const rawQueueType = meta.queueType || LOL_QUEUE_TYPES.UNKNOWN;
+                                const queueType = mapRiotLolQueueType(rawQueueType) ?? rawQueueType;
                                 const isRanked = isRankedQueue(GAME_TYPES.LOL, queueType);
                                 const gameMs = Number(match?.info?.gameEndTimestamp ?? 0)
                                     || Number(match?.info?.gameCreation ?? 0)
@@ -492,6 +499,18 @@ export async function startMatchPoller(client) {
                                 const deltas = computeRankSnapshotDeltas({ before: beforeLol, after: afterLol });
                                 const afterRank = isLatestRankedMatch ? (afterLol?.[queueType] ?? null) : null;
                                 const delta = isLatestRankedMatch ? (deltas?.[queueType] ?? 0) : 0;
+                                
+                                if (isRanked) {
+                                    const placement = me?.win ? 1 : 2;
+                                    lolRecapEvents = buildRecapEvents({
+                                        recapEvents: lolRecapEvents,
+                                        matchId,
+                                        queueType,
+                                        delta,
+                                        placement,
+                                        gameMs,
+                                    });
+                                }
 
                                 if (!shouldAnnounceMatch({ announceQueues, queueType })) {
                                     console.log(
@@ -534,20 +553,21 @@ export async function startMatchPoller(client) {
                                         lastMatchId: lastProcessedLolMatchId,
                                         lastMatchAt: lastProcessedLolMatchAt,
                                         lastRankByQueue: afterLol,
+                                        recapEvents: lolRecapEvents,
                                     },
                                 },
                             });
                         }
                     }
 
-                    if (!tftIdentity?.puuid) {
+                    if (!canPollTft) {
                         await sleep(perAccountDelayMs);
                         continue;
                     }
 
                     // Fetch unseen match IDs, respecting the backfill limit.
                     const unseenMatchIds = await detectUnseenMatchIds({
-                        tracking: getTftTracking(account),
+                        tracking: tftTracking,
                         matchBackfillLimit: MATCH_BACKFILL_LIMIT,
                         fetchMatchIdsByAccount: ({ count, start }) =>
                             fetchMatchIds({ riotLimiter, account, count, start }),
@@ -560,7 +580,6 @@ export async function startMatchPoller(client) {
 
                     // Process matches from oldest to newest so deltas line up.
                     const orderedMatchIds = [...unseenMatchIds].reverse();
-                    const tftTracking = getTftTracking(account);
                     const before = tftTracking.lastRankByQueue ?? {};
                     let after = before;
                     let recapEvents = Array.isArray(tftTracking.recapEvents) ? tftTracking.recapEvents : [];
