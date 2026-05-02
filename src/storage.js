@@ -3,6 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_ANNOUNCE_QUEUES } from './constants/queues.js';
+import { config } from 'node:process';
 
 // === File locations ===
 // Use a default path in the repo while allowing overrides via env vars.
@@ -138,14 +139,6 @@ function ensureGuild(db, guildId) {
             Number.isFinite(numericCutoff) && numericCutoff > 0 ? numericCutoff : null;
     }
 
-    // if (!('recap' in db[guildId]) || typeof db[guildId].recap !== 'object' || db[guildId].recap === null) {
-    //     db[guildId].recap = {
-    //         enabled: false,
-    //         mode: 'DAILY',          // DAILY | WEEKLY
-    //         game: 'TFT',
-    //         queue: 'RANKED_TFT',    // RANKED_TFT | RANKED_TFT_DOUBLE_UP
-    //         lastSentYmd: null,      // "YYYY-MM-DD" to prevent double posting
-    //     };
     if (!Array.isArray(db[guildId].recapConfigs)) {
         const legacyRecap = 
             db[guildId].recap && typeof db[guildId].recap === 'object'
@@ -153,8 +146,8 @@ function ensureGuild(db, guildId) {
             : null;
         db[guildId].recapConfigs = [normalizeRecapConfig(legacyRecap, DEFAULT_RECAP_CONFIG_ID)];
     } else {
-        db[guildId].recapConfigs = db[guildId].recapConfigs.map((cfx, idx) =>
-            normalizeRecapConfig(config, idx === 0 ? DEFAULT_RECAP_CONFIG_ID : `cfg-${idx + 1}`)
+        db[guildId].recapConfigs = db[guildId].recapConfigs.map((cfg, idx) =>
+            normalizeRecapConfig(cfg, idx === 0 ? DEFAULT_RECAP_CONFIG_ID : `cfg-${idx + 1}`)
         );
     }
     // Backward compatibility view for legacy callers during transition.

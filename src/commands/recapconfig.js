@@ -1,6 +1,6 @@
 // src/commands/recapconfig.js
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
-import { loadDb, getGuildRecapConfig, setGuildRecapConfigsInStore } from "../storage.js";
+import { loadDb, getGuildRecapConfigs, setGuildRecapConfigsInStore } from "../storage.js";
 import {
   GAME_TYPES,
   GAME_TYPE_CHOICES,
@@ -76,17 +76,6 @@ export default {
       return interaction.reply({ content: "Provide fields to update (`enabled/game/mode/queue`) and optional `id`/`slot` selector.", ephemeral: true });
     }
 
-    // if (mode !== null) {
-    //   const validModes = new Set(RECAP_MODE_CHOICES.map((choice) => choice.value));
-    //   if (!validModes.has(mode)) {
-    //     await interaction.reply({
-    //       content: `Invalid mode. Allowed values: ${[...validModes].join(", ")}.`,
-    //       ephemeral: true,
-    //     });
-    //     return;
-    //   }
-    // }
-
     if (targetIdx < 0) {
       const newId = requestedId || `cfg-${recapConfigs.length + 1}`;
       recapConfigs.push({ id: newId, enabled: false, game: GAME_TYPES.TFT, mode: "DAILY", queue: defaultRankedQueueForGame(GAME_TYPES.TFT), lastSentYmd: null });
@@ -103,30 +92,18 @@ export default {
       ...(requestedId ? { id: requestedId } : {}),
       ...(enabled !== null ? { enabled } : {}),
 
-    // const patch = {
-    //   enabled,
       ...(game ? { game } : {}),
       ...(mode ? { mode } : {}),
-      // ...(queue ? { queue } : {}),
-      // ...(enabled ? { lastSentYmd: null } : {}), // when enabling, allow next 9am to fire
     ...(nextQueue ? { queue: nextQueue } : {}),
     ...(enabled === true ? { lastSentYmd: null } : {}),
     };
 
     recapConfigs = await setGuildRecapConfigsInStore(guildId, recapConfigs);
     const updated = recapConfigs[targetIdx];
-    // const updated = await setGuildRecapConfigInStore(guildId, patch);
     const scheduleText = formatRecapScheduleTime(config.recapAutopostHour, config.recapAutopostMinute);
 
     return interaction.reply({
       content: `✅ Saved recap config **${updated.id}**: ${updated.enabled ? "Enabled" : "Disabled"} • ${updated.game === GAME_TYPES.LOL ? "LoL" : "TFT"} / ${queueLabel(updated.game ?? GAME_TYPES.TFT, updated.queue)} • ${modeLabel(updated.mode)} • posts at **${scheduleText}**`,
-
-      // console.log(`[recapconfig] update guild=${guildId} patch=${JSON.stringify(patch)} -> ${JSON.stringify(updated)}`);
-
-    // await interaction.reply({
-    //   content: enabled
-    //     ? `✅ Autopost enabled: **${updated.game === GAME_TYPES.LOL ? "LoL" : "TFT"} / ${queueLabel(updated.game ?? GAME_TYPES.TFT, updated.queue)}** • **${modeLabel(updated.mode)}** • posts at **${scheduleText}**`
-    //     : `🛑 Autopost disabled.`,
       ephemeral: true,
     });
   },
