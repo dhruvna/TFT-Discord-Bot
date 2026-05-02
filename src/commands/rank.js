@@ -30,6 +30,20 @@ function formatLastUpdated(lastUpdatedAt) {
     return `<t:${unixSeconds}:F> (<t:${unixSeconds}:R>)`;
 }
 
+function buildQueueEntry(lastRankByQueue, queueType, gameType) {
+    const snapshot = lastRankByQueue?.[queueType];
+    if (!snapshot) return null;
+
+    return { ...snapshot, queueType, gameType };
+}
+
+const QUEUE_DEFINITIONS = [
+    { gameType: GAME_TYPES.TFT, queueType: TFT_QUEUE_TYPES.RANKED, enabledBySelectedGame: (selectedGame) => selectedGame === "BOTH" || selectedGame === "TFT" },
+    { gameType: GAME_TYPES.TFT, queueType: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP, enabledBySelectedGame: (selectedGame) => selectedGame === "BOTH" || selectedGame === "TFT" },
+    { gameType: GAME_TYPES.LOL, queueType: LOL_QUEUE_TYPES.RANKED_SOLO_DUO, enabledBySelectedGame: (selectedGame) => selectedGame === "BOTH" || selectedGame === "LOL" },
+    { gameType: GAME_TYPES.LOL, queueType: LOL_QUEUE_TYPES.RANKED_FLEX, enabledBySelectedGame: (selectedGame) => selectedGame === "BOTH" || selectedGame === "LOL" },
+];
+
 async function buildQueueEmbed({account, label, entry}) {
     const fields = [];
     addQueueSection(fields, label, entry);
@@ -96,64 +110,30 @@ export default {
         }
 
         const selectedGame = interaction.options.getString('game') ?? "BOTH";
-        const shouldShowTft = selectedGame === "BOTH" || selectedGame === "TFT";
-        const shouldShowLol = selectedGame === "BOTH" || selectedGame === "LOL";
+        
         // 4. Pull out separate tracked rank snapshots for each game
         const tftTracking = getTftTracking(stored);
         const lolTracking = getLolTracking(stored);
-        const tftRankByQueue = tftTracking.lastRankByQueue ?? {};
-        const lolRankByQueue = lolTracking.lastRankByQueue ?? {};
+        
+        const rankByQueueByGameType = {
+            [GAME_TYPES.TFT]: tftTracking.lastRankByQueue ?? {},
+            [GAME_TYPES.LOL]: lolTracking.lastRankByQueue ?? {},
+        };
 
-        // 5. Pull out queues we care about
-        const rankedEntry = tftRankByQueue[TFT_QUEUE_TYPES.RANKED]
-            ? { ...tftRankByQueue[TFT_QUEUE_TYPES.RANKED], queueType: TFT_QUEUE_TYPES.RANKED, gameType: GAME_TYPES.TFT }
-            : null;
-        const doubleUpEntry = tftRankByQueue[TFT_QUEUE_TYPES.RANKED_DOUBLE_UP]
-            ? { ...tftRankByQueue[TFT_QUEUE_TYPES.RANKED_DOUBLE_UP], queueType: TFT_QUEUE_TYPES.RANKED_DOUBLE_UP, gameType: GAME_TYPES.TFT }
-            : null;
-        const lolSoloEntry = lolRankByQueue[LOL_QUEUE_TYPES.RANKED_SOLO_DUO]
-            ? { ...lolRankByQueue[LOL_QUEUE_TYPES.RANKED_SOLO_DUO], queueType: LOL_QUEUE_TYPES.RANKED_SOLO_DUO, gameType: GAME_TYPES.LOL }
-            : null;
-        const lolFlexEntry = lolRankByQueue[LOL_QUEUE_TYPES.RANKED_FLEX]
-            ? { ...lolRankByQueue[LOL_QUEUE_TYPES.RANKED_FLEX], queueType: LOL_QUEUE_TYPES.RANKED_FLEX, gameType: GAME_TYPES.LOL }
-            : null;
-
-        // 6. Build embed fields
+        // 5. Build embed fields
         const embeds = [];
 
-        if (shouldShowTft && rankedEntry) {
-            embeds.push(
-                await buildQueueEmbed({ 
-                    account: stored, 
-                    label: queueLabel(GAME_TYPES.TFT, TFT_QUEUE_TYPES.RANKED), 
-                    entry: rankedEntry 
-                })
-            );
-        }
-        if (shouldShowTft && doubleUpEntry) {
-            embeds.push(
-                await buildQueueEmbed({ 
-                    account: stored, 
-                    label: queueLabel(GAME_TYPES.TFT, TFT_QUEUE_TYPES.RANKED_DOUBLE_UP), 
-                    entry: doubleUpEntry 
-                })
-            );
-        }
-        if (shouldShowLol && lolSoloEntry) {
+        for (const definition of QUEUE_DEFINITIONS) {
+            if (!definition.enabledBySelectedGame(selectedGame)) continue;
+
+            const lastRankByQueue = rankByQueueByGameType[definition.gameType];
+            const entry = buildQueueEntry(lastRankByQueue, definition.queueType, definition.gameType);
+            if (!entry) continue;
             embeds.push(
                 await buildQueueEmbed({
                     account: stored,
-                    label: queueLabel(GAME_TYPES.LOL, LOL_QUEUE_TYPES.RANKED_SOLO_DUO),
-                    entry: lolSoloEntry,
-                })
-            );
-        }
-        if (shouldShowLol && lolFlexEntry) {
-            embeds.push(
-                await buildQueueEmbed({
-                    account: stored,
-                    label: queueLabel(GAME_TYPES.LOL, LOL_QUEUE_TYPES.RANKED_FLEX),
-                    entry: lolFlexEntry,
+                    label: queueLabel(definition.gameType, definition.queueType),
+                    entry,
                 })
             );
         }

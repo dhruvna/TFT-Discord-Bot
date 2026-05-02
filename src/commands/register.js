@@ -2,12 +2,6 @@ import { SlashCommandBuilder } from "discord.js";
 
 import {
     getAccountByRiotId,
-    getTFTMatch,
-    getTFTRankByPuuid,
-    getTFTMatchIdsByPuuid,
-    getLolRankByPuuid,
-    getLolMatchIdsByPuuid,
-    getLolMatch,
     resolveRegion,
 } from '../riot.js';
 
@@ -17,8 +11,27 @@ import {
     makeAccountKey,
     upsertGuildAccountInStore,
 } from '../storage.js';
-import { LOL_QUEUE_TYPES, RANKED_QUEUES } from "../constants/queues.js";
-import { toRankSnapshot } from "../utils/rankSnapshot.js";
+import { bootstrapTrackedGame } from "../services/accountBootstrap.js";
+
+const logBootstrapFailure = ({ gameType, step, err, gameName, tagLine, region, platform, regional, puuid }) => {
+    const status = err?.status;
+    console.error(
+        '[register] riot-bootstrap failed',
+        {
+            gameType,
+            step,
+            status: status ?? 'unknown',
+            endpoint: err?.endpoint ?? 'unknown',
+            gameName,
+            tagLine,
+            region,
+            platform,
+            regional,
+            puuid: puuid ?? null,
+            responseText: err?.responseText ?? null,
+        }
+    );
+};
 
 export default {
     data: new SlashCommandBuilder()
@@ -53,7 +66,7 @@ export default {
         // 4. Defer reply in case of Riot API delay
         await interaction.deferReply({ ephemeral: true });
 
-        // 5. Riot ID -> Account PUUID
+        // 5. Resolve Riot IDs -> Account PUUIDs
         let tftAccount;
         let lolAccount;
         // let account;
@@ -86,85 +99,30 @@ export default {
             return;
         }
 
-        // 6. Snapshot current TFT rank, for use in LP delta tracking
-        let tftLastRankByQueue = {};
-        try {
-            const entries = await getTFTRankByPuuid({ platform, puuid: tftAccount.puuid });
-            tftLastRankByQueue = toRankSnapshot(entries, { rankedQueues: RANKED_QUEUES });
-       } catch (err) {
-            const status = err?.status;
-            console.error(
-                `[register] getTFTRankByPuuid snapshot failed status=${status ?? 'unknown'} endpoint=${err?.endpoint ?? 'unknown'} puuid=${tftAccount?.puuid} platform=${platform}`,
-                err?.responseText ? { responseText: err.responseText } : err
-            );
-            tftLastRankByQueue = {};
-        }
-        
-        // 7. Snapshot latest match ID, for use in game tracking
-        let tftLastMatchId = null;
-        let tftLastMatchAt = null;
-        try {
-            const ids = await getTFTMatchIdsByPuuid({ regional, puuid: tftAccount.puuid, count: 1 });
-            tftLastMatchId = Array.isArray(ids) && ids.length > 0 ? ids[0] : null;
-            if (tftLastMatchId) {
-                const latestMatch = await getTFTMatch({ regional, matchId: tftLastMatchId });
-                const gameDatetime = Number(latestMatch?.info?.game_datetime ?? 0);
-                tftLastMatchAt = Number.isFinite(gameDatetime) && gameDatetime > 0 ? gameDatetime : null;
-            }
-        } catch (err) {
-            const status = err?.status;
-            console.error(
-                `[register] getTFTMatchIdsByPuuid snapshot failed status=${status ?? 'unknown'} endpoint=${err?.endpoint ?? 'unknown'} puuid=${tftAccount?.puuid} regional=${regional}`,
-                err?.responseText ? { responseText: err.responseText } : err
-            );
-            tftLastMatchId = null;
-            tftLastMatchAt = null;
-        }
+        // 6. Snapshot tracked games state in parallel for LP delta + latest match tracking
+        const [
+            { lastRankByQueue: tftLastRankByQueue, lastMatchId: tftLastMatchId, lastMatchAt: tftLastMatchAt },
+            { lastRankByQueue: lolLastRankByQueue, lastMatchId: lolLastMatchId, lastMatchAt: lolLastMatchAt },
+        ] = await Promise.all([
+            bootstrapTrackedGame({
+                gameType: 'TFT',
+                platform,
+                regional,
+                puuid: tftAccount?.puuid,
+                onError: ({ step, gameType, err, platform: p, regional: r, puuid }) =>
+                    logBootstrapFailure({ gameType, step, err, gameName, tagLine, region, platform: p, regional: r, puuid }),
+            }),
+            bootstrapTrackedGame({
+                gameType: 'LOL',
+                platform,
+                regional,
+                puuid: lolAccount?.puuid,
+                onError: ({ step, gameType, err, platform: p, regional: r, puuid }) =>
+                    logBootstrapFailure({ gameType, step, err, gameName, tagLine, region, platform: p, regional: r, puuid }),
+            }),
+        ]);
 
-        // 8. Snapshot current LoL rank + latest match, mirroring TFT initialization
-        let lolLastRankByQueue = {};
-        try {
-            const entries = await getLolRankByPuuid({ platform, puuid: lolAccount?.puuid });
-            lolLastRankByQueue = toRankSnapshot(entries, {
-                rankedQueues: new Set([
-                    LOL_QUEUE_TYPES.RANKED_SOLO_DUO,
-                    LOL_QUEUE_TYPES.RANKED_FLEX,
-                ]),
-            });
-        } catch (err) {
-            const status = err?.status;
-            console.error(
-                `[register] getLolRankByPuuid snapshot failed status=${status ?? 'unknown'} endpoint=${err?.endpoint ?? 'unknown'} puuid=${lolAccount?.puuid} platform=${platform}`,
-                err?.responseText ? { responseText: err.responseText } : err
-            );
-            lolLastRankByQueue = {};
-        }
-
-        let lolLastMatchId = null;
-        let lolLastMatchAt = null;
-        try {
-            const ids = await getLolMatchIdsByPuuid({ regional, puuid: lolAccount?.puuid, count: 1 });
-            lolLastMatchId = Array.isArray(ids) && ids.length > 0 ? ids[0] : null;
-
-            if (lolLastMatchId) {
-                const latestMatch = await getLolMatch({ regional, matchId: lolLastMatchId });
-                const gameEndTimestamp = Number(latestMatch?.info?.gameEndTimestamp ?? 0);
-                const gameCreation = Number(latestMatch?.info?.gameCreation ?? 0);
-                lolLastMatchAt = Number.isFinite(gameEndTimestamp) && gameEndTimestamp > 0
-                    ? gameEndTimestamp
-                    : (Number.isFinite(gameCreation) && gameCreation > 0 ? gameCreation : null);
-            }
-        } catch (err) {
-            const status = err?.status;
-            console.error(
-                `[register] getLolMatchIdsByPuuid snapshot failed status=${status ?? 'unknown'} endpoint=${err?.endpoint ?? 'unknown'} puuid=${lolAccount?.puuid} regional=${regional}`,
-                err?.responseText ? { responseText: err.responseText } : err
-            );
-            lolLastMatchId = null;
-            lolLastMatchAt = null;
-        }
-
-        // 9. Build stored record
+        // 7. Build stored record
         const stored = {
             key: makeAccountKey({ gameName: tftAccount.gameName, tagLine: tftAccount.tagLine, platform }),
             gameName: tftAccount.gameName,
@@ -194,10 +152,10 @@ export default {
             },
         };
 
-        // 10. Upsert into storage
+        // 8. Upsert into storage
         const { existed } = await upsertGuildAccountInStore(guildId, stored);
 
-        // 11. Confirm to user
+        // 9. Confirm to user
         if (existed) {
             await interaction.editReply(`**${stored.gameName}#${stored.tagLine}** is already registered in this server.`);
             return;
