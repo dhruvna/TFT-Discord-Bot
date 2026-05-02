@@ -88,7 +88,8 @@ export default {
 
     const enabled = interaction.options.getBoolean("enabled"); // required unless status=true
     const game = interaction.options.getString("game") ?? GAME_TYPES.TFT; // optional, defaults TFT for compatibility
-    const rawQueue = interaction.options.getString("queue"); // optional
+    const mode = interaction.options.getString("mode"); // optional
+    // const rawQueue = interaction.options.getString("queue"); // optional
     const validQueueTypes = new Set(queueChoicesForRecap(game).map((choice) => choice.value));
     const queue = rawQueue && validQueueTypes.has(rawQueue)
       ? rawQueue
@@ -112,13 +113,14 @@ export default {
     };
 
     const updated = await setGuildRecapConfigInStore(guildId, patch);
+    const effectiveMode = updated.mode ?? mode ?? "DAILY";
     const scheduleText = formatRecapScheduleTime(config.recapAutopostHour, config.recapAutopostMinute);
 
     console.log(`[recapconfig] update guild=${guildId} patch=${JSON.stringify(patch)} -> ${JSON.stringify(updated)}`);
 
     await interaction.reply({
       content: enabled
-        ? `✅ Autopost enabled: **${updated.game === GAME_TYPES.LOL ? "LoL" : "TFT"} / ${queueLabel(updated.game ?? GAME_TYPES.TFT, updated.queue)}** • **${modeLabel(updated.mode)}** • posts at **${scheduleText}**`
+        ? `✅ Autopost enabled: **${updated.game === GAME_TYPES.LOL ? "LoL" : "TFT"} / ${queueLabel(updated.game ?? GAME_TYPES.TFT, updated.queue)}** • **${modeLabel(effectiveMode)}** • posts at **${scheduleText}**`
         : `🛑 Autopost disabled.`,
       ephemeral: true,
     });

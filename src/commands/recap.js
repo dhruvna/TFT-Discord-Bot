@@ -19,7 +19,7 @@ import { RECAP_MODE_CHOICES } from "../constants/recap.js";
 export default {
   data: new SlashCommandBuilder()
     .setName("recap")
-    .setDescription("Show a TFT recap now (Ranked or Double Up), daily or weekly.")
+    .setDescription("Show a recap now for TFT or LoL, daily or weekly.")
     .addStringOption((opt) =>
       opt
         .setName("game")
@@ -52,10 +52,16 @@ export default {
         const mode = interaction.options.getString("mode") ?? "DAILY";
         const rawQueue = interaction.options.getString("queue");
         const validQueueTypes = new Set(queueChoicesForRecap(game).map((choice) => choice.value));
-        const queue = validQueueTypes.has(rawQueue)
-            ? rawQueue
-            : defaultRankedQueueForGame(game);
+        if (rawQueue && !validQueueTypes.has(rawQueue)) {
+            const validQueues = queueChoicesForRecap(game).map((choice) => `\`${choice.name}\``).join(", ");
+            await interaction.editReply(
+                `\`${rawQueue}\` is not a valid queue for ${game}. Choose one of: ${validQueues}.`
+            );
+            return;
+        }
 
+        const queue = rawQueue ?? defaultRankedQueueForGame(game);
+        
         const hours = hoursForMode(mode);
         const cutoff = Date.now() - hours * 60 * 60 * 1000;
 

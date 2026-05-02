@@ -122,8 +122,14 @@ export default {
             score: rankScore(rank),
         };
       })
+      .filter((entry) => entry.rank?.tier) // Only show ranked accounts in the requested queue.
       .sort((a, b) => b.score - a.score);
     
+    if (!ranked.length) {
+      await interaction.editReply("No ranked snapshots available for this queue yet.");
+      return;
+    }
+
     // Limit output so the embed stays readable.
     const shown = ranked.slice(0, limit);
     
@@ -139,7 +145,7 @@ export default {
       const wr = formatWinrate(wins, losses);
 
       // Only show W/L if we have an entry
-      const stats = r.rank?.tier ? ` • ${wins}W-${losses}L • ${wr}` : "";
+      const stats = ` • ${wins}W-${losses}L • ${wr}`;
 
       return `${medalForIndex(i)} **${name}** — ${rankStr}${stats}`;
     });
@@ -148,8 +154,8 @@ export default {
     const embed = new EmbedBuilder()
         .setTitle(`${game === GAME_TYPES.LOL ? "LoL" : "TFT"} Leaderboard — ${queueLabelText}`)
         .setDescription(lines.join("\n"))
-        .setFooter({ text: `Showing top ${shown.length} of ${ranked.length} registered account(s)` });
-
+        .setFooter({ text: `Showing top ${shown.length} of ${ranked.length} ranked account(s)` });
+        
     await interaction.editReply({ embeds: [embed] });
   },
 };

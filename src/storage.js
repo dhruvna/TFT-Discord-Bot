@@ -413,17 +413,22 @@ export function pruneExpiredRecapEventsInDb(db, nowMs = Date.now()) {
         const guild = ensureGuild(db, guildId);
         for (const account of guild.accounts) {
             const tftTracking = getTftTracking(account);
-            const recapEvents = Array.isArray(tftTracking?.recapEvents) ? tftTracking.recapEvents : [];
-            if (recapEvents.length === 0) continue;
+            const lolTracking = getLolTracking(account);
+            let accountTouched = false;
 
-            const nextRecapEvents = recapEvents.filter((event) => Number(event?.at ?? 0) > cutoffMs);
-            const removedCount = recapEvents.length - nextRecapEvents.length;
-            if (removedCount <= 0) continue;
+            for (const tracking of [tftTracking, lolTracking]) {
+                const recapEvents = Array.isArray(tracking?.recapEvents) ? tracking.recapEvents : [];
+                if (recapEvents.length === 0) continue;
+                const nextRecapEvents = recapEvents.filter((event) => Number(event?.at ?? 0) > cutoffMs);
+                const removedCount = recapEvents.length - nextRecapEvents.length;
+                if (removedCount <= 0) continue;
 
-            tftTracking.recapEvents = nextRecapEvents;
-            didChange = true;
-            prunedEvents += removedCount;
-            touchedAccounts += 1;
+                tracking.recapEvents = nextRecapEvents;
+                didChange = true;
+                prunedEvents += removedCount;
+                accountTouched = true;
+            }
+            if (accountTouched) touchedAccounts += 1;
         }
     }
 
